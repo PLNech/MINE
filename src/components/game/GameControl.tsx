@@ -28,7 +28,6 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
 
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = parseInt(e.target.value);
-    console.log("Direct slider change detected:", newValue);
     
     // Direct dispatch
     dispatch({ 
@@ -58,11 +57,7 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
               min={GAME_PARAMETERS.MIN_WAGE}
               max={GAME_PARAMETERS.MAX_WAGE}
               value={state.salary}
-              onChange={(e) => {
-                const newSalary = parseInt(e.target.value);
-                console.log("Slider changed to:", newSalary);
-                dispatch({ type: 'SET_SALARY', payload: newSalary });
-              }}
+              onChange={handleSalaryChange}
               className="flex-grow h-3 appearance-none rounded-full bg-amber-300 outline-none"
               data-testid="salary-slider"
             />

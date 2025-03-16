@@ -102,20 +102,36 @@ export const TUTORIAL_FLOW = {
     totalSteps: 3
   },
   SALARY_3: {
-    next: 'WORKER_1',
-    text: "Try adjusting the salary now. Watch how the projected worker migration changes!",
+    next: 'WORKER_INTRO_1',
+    text: "Now advance the week to see who your salary attracts!",
     stage: TutorialStage.SALARY_SETTING,
     step: 3,
-    totalSteps: 3
+    totalSteps: 3,
+    condition: 'hasAdvancedWeek'
   },
-  WORKER_1: {
-    next: 'WORKER_2',
-    text: "As workers arrive, you can assign them to buildings.",
+  WORKER_INTRO_1: {
+    next: 'WORKER_INTRO_2',
+    text: "Your first workers have arrived! Let's meet them.",
+    stage: TutorialStage.WORKER_MANAGEMENT,
+    step: 1,
+    totalSteps: 5,
+    isWorkerIntro: true
+  },
+  WORKER_INTRO_2: {
+    next: 'WORKER_MANAGEMENT_1',
+    text: "These are your first workers. They'll be working in The Mine.",
+    stage: TutorialStage.WORKER_MANAGEMENT,
+    step: 2,
+    totalSteps: 5
+  },
+  WORKER_MANAGEMENT_1: {
+    next: 'WORKER_MANAGEMENT_2',
+    text: "These are your first workers. They'll be working in The Mine.",
     stage: TutorialStage.WORKER_MANAGEMENT,
     step: 1,
     totalSteps: 3
   },
-  WORKER_2: {
+  WORKER_MANAGEMENT_2: {
     next: 'WORKER_3',
     text: "Workers in mines produce minerals which generate revenue.",
     stage: TutorialStage.WORKER_MANAGEMENT,
@@ -129,7 +145,7 @@ export const TUTORIAL_FLOW = {
     step: 3,
     totalSteps: 3
   }
-};
+} as const;
 
 export const GAME_PARAMETERS = {
   STARTING_TREASURY: 1000,

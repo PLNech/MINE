@@ -75,6 +75,26 @@ export default function GameMap() {
           </div>
         </div>
       )}
+      
+      {/* Workers section */}
+      {state.workers.length > 0 && (
+        <div className="mt-8 pt-4 border-t-2 border-gray-300">
+          <h3 className="font-im-fell text-lg mb-4">Workers in The Mine</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {state.workers.map(worker => (
+              <div key={worker.id} className="flex items-center gap-3 p-2 bg-amber-100/50 rounded">
+                <div className="text-2xl filter sepia">👷</div>
+                <div>
+                  <div className="font-bold">{worker.name}</div>
+                  <div className="text-sm text-gray-600">
+                    Health: {worker.health}% | Satisfaction: {worker.satisfaction}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

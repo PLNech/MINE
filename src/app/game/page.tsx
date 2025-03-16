@@ -16,6 +16,8 @@ function GamePageContent() {
   const [showWorkerIntroduction, setShowWorkerIntroduction] = useState(false);
   const [initialWorkers, setInitialWorkers] = useState<any[]>([]);
   const [hasSavedGame, setHasSavedGame] = useState(false);
+  const [currentWorkerIndex, setCurrentWorkerIndex] = useState(0);
+  const [showingWorkerIntro, setShowingWorkerIntro] = useState(false);
 
   // Check for saved game on mount
   useEffect(() => {
@@ -109,13 +111,27 @@ function GamePageContent() {
 
   // Update the advanceTutorial function
   const advanceTutorial = () => {
+    const currentStep = TUTORIAL_FLOW[currentTutorialKey];
+
+    // Handle worker introductions
+    if (currentStep.isWorkerIntro) {
+      if (currentWorkerIndex < state.workers.length - 1) {
+        setCurrentWorkerIndex(prev => prev + 1);
+        return;
+      }
+      // All workers introduced, move to management
+      setShowingWorkerIntro(false);
+      setCurrentTutorialKey('WORKER_MANAGEMENT_1');
+      return;
+    }
+
     // Special handling for intro letter
     if (currentTutorialKey === 'INTRO_LETTER') {
       handleIntroLetterClose();
       return;
     }
 
-    const currentStep = TUTORIAL_FLOW[currentTutorialKey];
+    console.log("advanceTutorial from ", currentTutorialKey, ":", currentStep);
     
     // Handle tutorial completion
     if (currentStep.next === 'COMPLETE') {
@@ -191,6 +207,44 @@ function GamePageContent() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Add worker introduction modal
+  const renderWorkerIntroModal = () => {
+    if (!showingWorkerIntro || currentWorkerIndex >= state.workers.length) return null;
+    
+    const worker = state.workers[currentWorkerIndex];
+    const workerFace = generateWorkerFace();
+    
+    return (
+      <div className="fixed inset-0 bg-amber-900/20 backdrop-blur-sm flex items-center justify-center z-[100]">
+        <div className="bg-amber-50 p-8 rounded-lg max-w-xl w-full mx-4 border-4 border-amber-900 shadow-2xl">
+          <div className="flex items-start gap-6">
+            <div className="relative">
+              <div className="text-6xl filter sepia">{workerFace.face}</div>
+              {workerFace.hat && (
+                <div className="absolute -top-4 -right-2 text-4xl transform rotate-12">
+                  {workerFace.hat}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex-1">
+              <h3 className="font-im-fell text-2xl mb-2">{worker.name}</h3>
+              <p className="text-gray-700 italic mb-4">{generateWorkerBackstory()}</p>
+            </div>
+          </div>
+          
+          <button
+            onClick={advanceTutorial}
+            className="mt-6 w-full bg-amber-700 text-white px-4 py-2 rounded 
+                     hover:bg-amber-600 text-lg font-im-fell"
+          >
+            Welcome!
+          </button>
         </div>
       </div>
     );
@@ -364,6 +418,8 @@ function GamePageContent() {
       
       {/* Tutorial Toast */}
       {renderTutorialToast()}
+
+      {renderWorkerIntroModal()}
 
       {/* Save game on each state change */}
       <SaveGameHandler state={state} />

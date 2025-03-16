@@ -11,7 +11,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_SALARY': {
       const newSalary = Number(action.payload);
       console.log('gameReducer: Setting salary from', state.salary, 'to', newSalary);
-      
+     
+      state.tutorial.conditions.hasAdjustedSalary = true;
       // Create completely new state object with updated salary
       return {
         ...state,
