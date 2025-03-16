@@ -3,7 +3,7 @@
 import { useGame } from '@/lib/context/GameContext';
 import { GameSpeed, NotificationType } from '@/lib/types/game';
 import { GAME_PARAMETERS, TUTORIAL_FLOW } from '@/lib/constants/gameConstants';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { TutorialStage } from '@/lib/types/game';
 
 interface GameControlProps {
@@ -13,14 +13,11 @@ interface GameControlProps {
 export default function GameControl({ onResetTutorial }: GameControlProps) {
   const { state, dispatch } = useGame();
   const [salaryCeremonyOpen, setSalaryCeremonyOpen] = useState(false);
+  console.log("GameControl rendering, dispatch function:", typeof dispatch);
 
-  // Debug render
-  console.log("GameControl rendering with salary:", state.salary);
-
-  // Debug salary changes
   useEffect(() => {
-    console.log("Salary changed in GameControl:", state.salary);
-  }, [state.salary]);
+    console.log("GameControl received new state:", state.salary);
+  }, [state]);
 
   // Calculate projected worker migration based on salary
   const projectedMigration = Math.round(((state.salary - GAME_PARAMETERS.MIN_WAGE) / 
@@ -29,29 +26,15 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
   // Calculate weekly expenses
   const weeklyExpenses = state.workers.length * state.salary;
 
-  // Handle salary change with debug
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newSalary = Math.max(
-      GAME_PARAMETERS.MIN_WAGE,
-      Math.min(parseInt(e.target.value) || GAME_PARAMETERS.MIN_WAGE, GAME_PARAMETERS.MAX_WAGE)
-    );
+    const newValue = parseInt(e.target.value);
+    console.log("Direct slider change detected:", newValue);
     
-    console.log("About to dispatch salary change:", newSalary);
-    
-    try {
-      dispatch({ type: 'SET_SALARY', payload: newSalary });
-      console.log("Dispatch completed");
-    } catch (error) {
-      console.error("Error dispatching salary change:", error);
-    }
-
-    // Track tutorial progress in a separate dispatch
-    if (!state.tutorial.conditions.hasAdjustedSalary) {
-      dispatch({ 
-        type: 'UPDATE_TUTORIAL_CONDITION', 
-        payload: { condition: 'hasAdjustedSalary', value: true } 
-      });
-    }
+    // Direct dispatch
+    dispatch({ 
+      type: 'SET_SALARY', 
+      payload: newValue 
+    });
   };
 
   // Get salary color based on value
@@ -60,25 +43,13 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
     if (state.salary > 60) return 'text-green-800';
     return 'text-amber-700';
   };
-
-  // Check if controls should be interactive based on tutorial stage
-  const canInteract = (stage: TutorialStage) => {
-    return true; //FIXME: canInteract was buggy, keeping all visible for now
-    // Allow interaction if tutorial is completed or we're at/past this stage
-    // const stageIndex = Object.values(TutorialStage).indexOf(stage);
-    // const currentStageIndex = Object.values(TutorialStage).indexOf(state.tutorial.stage);
-    // console.log("Could interact? stage=", stage, "current tutorial:", state.tutorial)
-    // return state.tutorial.completed || currentStageIndex >= stageIndex;
-  };
   
   return (
     <div className="p-6 font-old-standard">
-      {/* Always visible controls, but conditionally interactive */}
+      {/* Always visible controls */}
       <div className="space-y-6">
         {/* Salary Control */}
-        <div className={`p-4 bg-amber-100 border-2 border-amber-700 rounded shadow-md
-          ${!canInteract(TutorialStage.SALARY_SETTING) ? 'opacity-50 pointer-events-none' : ''}`}
-        >
+        <div className="p-4 bg-amber-100 border-2 border-amber-700 rounded shadow-md">
           <h3 className="font-im-fell text-xl text-gray-800 mb-3">Weekly Salary</h3>
           <div className="flex items-center space-x-4">
             <span className={`text-xl font-bold ${getSalaryColor()}`}>${state.salary}</span>
@@ -87,18 +58,49 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
               min={GAME_PARAMETERS.MIN_WAGE}
               max={GAME_PARAMETERS.MAX_WAGE}
               value={state.salary}
-              onChange={handleSalaryChange}
+              onChange={(e) => {
+                const newSalary = parseInt(e.target.value);
+                console.log("Slider changed to:", newSalary);
+                dispatch({ type: 'SET_SALARY', payload: newSalary });
+              }}
               className="flex-grow h-3 appearance-none rounded-full bg-amber-300 outline-none"
               data-testid="salary-slider"
             />
           </div>
+          
+          {/* Alternative controls for testing */}
+          <div className="mt-3 flex justify-between">
+            <button
+              onClick={() => {
+                const newSalary = Math.max(GAME_PARAMETERS.MIN_WAGE, state.salary - 5);
+                console.log("Decreasing salary to:", newSalary);
+                dispatch({ type: 'SET_SALARY', payload: newSalary });
+              }}
+              className="px-2 py-1 bg-amber-700 text-white rounded text-sm"
+            >
+              -$5
+            </button>
+            
+            <button
+              onClick={() => {
+                const newSalary = Math.min(GAME_PARAMETERS.MAX_WAGE, state.salary + 5);
+                console.log("Increasing salary to:", newSalary);
+                dispatch({ type: 'SET_SALARY', payload: newSalary });
+              }}
+              className="px-2 py-1 bg-amber-700 text-white rounded text-sm"
+            >
+              +$5
+            </button>
+          </div>
+          
           <div className="mt-3 text-sm text-gray-700">
             <p>Projected worker migration: <span className="font-bold">{projectedMigration} workers/week</span></p>
           </div>
         </div>
 
+
         {/* Stats */}
-        <div className={`space-y-4 ${!canInteract(TutorialStage.WORKER_MANAGEMENT) ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className={`space-y-4`}>
           <div className="stat-group">
             <h3 className="font-im-fell text-lg text-gray-800">Expenses</h3>
             <p className="text-xl text-rose-700">${weeklyExpenses}</p>
@@ -157,7 +159,7 @@ export default function GameControl({ onResetTutorial }: GameControlProps) {
           </div>
 
           {/* All other controls */}
-          <div className={`space-y-4 mt-8 ${!canInteract(TutorialStage.BUILDING_CONSTRUCTION) ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`space-y-4 mt-8`}>
             {/* Basic Controls */}
             <div className="space-y-4">
               <button

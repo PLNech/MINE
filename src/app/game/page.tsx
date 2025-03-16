@@ -1,13 +1,14 @@
 'use client';
 
-import { useGame } from '@/lib/context/GameContext';
+import { useGame, GameProvider } from '@/lib/context/GameContext';
 import { useState, useEffect } from 'react';
 import { GameState, TutorialStage } from '@/lib/types/game';
 import { TUTORIAL_FLOW, GAME_PARAMETERS } from '@/lib/constants/gameConstants';
 import GameMap from '@/components/game/GameMap';
 import GameControl from '@/components/game/GameControl';
 
-export default function GamePage() {
+// Create a content component to use the context
+function GamePageContent() {
   const { state, dispatch } = useGame();
   const [showTutorial, setShowTutorial] = useState(true);
   const [currentTutorialKey, setCurrentTutorialKey] = useState<keyof typeof TUTORIAL_FLOW>('INTRO_LETTER');
@@ -381,4 +382,13 @@ function SaveGameHandler({ state }: { state: GameState }) {
   }, [state]);
 
   return null;
-} 
+}
+
+// Main export that wraps the content with GameProvider
+export default function GamePage() {
+  return (
+    <GameProvider>
+      <GamePageContent />
+    </GameProvider>
+  );
+}

@@ -1,13 +1,14 @@
+// src/lib/context/GameContext.tsx
 'use client';
 
-import { createContext, useContext, useReducer, ReactNode } from 'react';
+import { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { GameState } from '../types/game';
 import { gameReducer } from './gameReducer';
-import { INITIAL_STATE, GAME_PARAMETERS } from '../constants/gameConstants';
+import { INITIAL_STATE } from '../constants/gameConstants';
 
 // 1. Define the action types explicitly
 export type GameAction = {
-  type: 'SET_SALARY' | 'NEW_GAME' | 'ADVANCE_WEEK' | 'SET_TUTORIAL_STAGE';
+  type: 'SET_SALARY' | 'NEW_GAME' | 'ADVANCE_WEEK' | 'SET_TUTORIAL_STAGE' | 'UPDATE_TUTORIAL_CONDITION' | 'LOAD_GAME';
   payload?: any;
 };
 
@@ -20,59 +21,16 @@ type GameContextType = {
 // 3. Create the context with a meaningful default value
 const GameContext = createContext<GameContextType | null>(null);
 
-// 4. Create a simple provider component
+// 4. Create a provider component
 export function GameProvider({ children }: { children: ReactNode }) {
-  // Initialize with a valid starting state
-  const initialState: GameState = {
-    ...INITIAL_STATE,
-    salary: GAME_PARAMETERS.MIN_WAGE,
-    version: '1.0',
-    startDate: Date.now(),
-    currentWeek: 1,
-    treasury: 1000,
-    workers: [],
-    buildings: [],
-    economy: {
-      treasury: 1000,
-      weeklyRevenue: 0,
-      weeklyExpenses: 0,
-      mineralPrice: 10,
-      priceFluctuation: 0
-    },
-    townScale: 'Camp',
-    weeklyHistory: [],
-    tutorial: {
-      stage: 'Introduction',
-      completed: false,
-      currentStep: 1,
-      conditions: {
-        hasViewedWorkers: false,
-        hasAdjustedSalary: false,
-        hasSalaryUiShown: false,
-        hasAssignedWorker: false,
-        hasViewedTreasury: false,
-        hasBuiltBarracks: false,
-        hasAdvancedWeek: false
-      }
-    },
-    notifications: [],
-    gameSpeed: 'NORMAL',
-    secretary: {
-      currentMessage: '',
-      messageHistory: []
-    },
-    gameDate: {
-      year: 1890,
-      month: 1,
-      day: 1,
-      dayOfWeek: 1
-    }
-  };
+  // Load saved game state or use initial state
+  const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
 
-  // 5. Simple reducer setup
-  const [state, dispatch] = useReducer(gameReducer, initialState);
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('GameContext: state updated, salary =', state.salary);
+  }, [state.salary]);
 
-  // 6. Provide the context value
   return (
     <GameContext.Provider value={{ state, dispatch }}>
       {children}
@@ -80,11 +38,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// 7. Create a simple hook for using the context
+// 5. Hook for using the context
 export function useGame() {
   const context = useContext(GameContext);
   if (!context) {
     throw new Error('useGame must be used within a GameProvider');
   }
   return context;
-} 
+}
