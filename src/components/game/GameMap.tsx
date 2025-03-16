@@ -1,67 +1,80 @@
 'use client';
 
 import { useGame } from '@/lib/context/GameContext';
-import { useEffect, useRef } from 'react';
+import { TutorialStage } from '@/lib/types/game';
+import { useState } from 'react';
 
 export default function GameMap() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
+  const [expandedBuildingId, setExpandedBuildingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Set canvas size to parent size
-    const resizeCanvas = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    // Draw sepia-toned map background
-    ctx.fillStyle = '#e4d5b7';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw mock mine in center
-    ctx.strokeStyle = '#4a3f35';
-    ctx.lineWidth = 2;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-
-    // Draw mine entrance (simple triangle)
-    ctx.beginPath();
-    ctx.moveTo(centerX - 30, centerY + 20);
-    ctx.lineTo(centerX, centerY - 20);
-    ctx.lineTo(centerX + 30, centerY + 20);
-    ctx.closePath();
-    ctx.stroke();
-
-    // Draw some terrain lines
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.moveTo(centerX - 100 + (i * 40), centerY - 50 + (Math.sin(i) * 20));
-      ctx.lineTo(centerX - 80 + (i * 40), centerY + 50 + (Math.cos(i) * 20));
-      ctx.stroke();
+  const handleExpandBuilding = (buildingId: string | null) => {
+    setExpandedBuildingId(buildingId);
+    
+    // Track tutorial progress
+    if (buildingId && !state.tutorial.conditions.hasViewedWorkers) {
+      dispatch({ 
+        type: 'UPDATE_TUTORIAL_CONDITION', 
+        payload: { condition: 'hasViewedWorkers', value: true } 
+      });
     }
-
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [state]);
+  };
 
   return (
-    <div className="relative w-full h-full">
-      <canvas 
-        ref={canvasRef}
-        className="absolute inset-0"
-      />
-      {/* Overlay for paper texture */}
-      <div className="absolute inset-0 pointer-events-none bg-paper-texture opacity-30" />
+    <div className="p-6 bg-amber-50 min-h-full font-mono text-gray-800">
+      <h2 className="text-2xl font-im-fell mb-6 border-b-2 border-gray-800 pb-2">
+        Town Layout
+      </h2>
+      
+      <div className="space-y-4 whitespace-pre-wrap">
+        {/* Buildings list */}
+        {state.buildings.map(building => (
+          <div 
+            key={building.id} 
+            className={`cursor-pointer ${building.type !== 'Mine' ? 'pl-4' : ''}`}
+            onClick={() => handleExpandBuilding(
+              expandedBuildingId === building.id ? null : building.id
+            )}
+          >
+            <div className={building.type === 'Mine' ? 'font-bold' : ''}>
+              {building.type === 'Mine' ? 'The Mine' : `- ${building.type}`} [
+              Level {building.level} | Workers: {building.workers.length}
+              {building.condition ? ` | Condition: ${building.condition}%` : ''}]
+            </div>
+            {expandedBuildingId === building.id && (
+              <div className="pl-4 text-sm text-gray-600 mt-1">
+                {building.workers.length === 0 ? "No workers assigned" : 
+                  state.workers
+                    .filter(w => building.workers.includes(w.id))
+                    .map(w => `${w.name} (${w.role}) - Health: ${w.health}% | Satisfaction: ${w.satisfaction}%`)
+                    .join('\n')}
+              </div>
+            )}
+          </div>
+        ))}
+        
+        {state.buildings.length === 0 && (
+          <div className="text-gray-600 italic">
+            A barren plot of land, waiting for your capitalistic touch...
+          </div>
+        )}
+      </div>
+      
+      {/* Unassigned Workers */}
+      {state.workers.length > 0 && (
+        <div className="mt-8 pt-4 border-t-2 border-gray-300">
+          <div className="font-bold mb-2">
+            Unassigned Workers [{state.workers.filter(w => 
+              !state.buildings.some(b => b.workers.includes(w.id))
+            ).length}]
+          </div>
+          <div className="pl-4 text-sm text-gray-600">
+            {state.workers
+              .filter(w => !state.buildings.some(b => b.workers.includes(w.id)))
+              .map(w => `${w.name} (${w.role})`).join('\n')}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

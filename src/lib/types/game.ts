@@ -7,6 +7,13 @@ export interface GameState {
   buildings: Building[];
   economy: Economy;
   townScale: TownScale;
+  salary: number;
+  weeklyHistory: WeeklyRecord[];
+  tutorial: TutorialState;
+  notifications: Notification[];
+  gameSpeed: GameSpeed;
+  secretary: SecretaryState;
+  gameDate: GameDate;
 }
 
 export interface Worker {
@@ -95,4 +102,72 @@ export interface FamilyMember {
   health: number;
 }
 
-export type FamilyRelation = 'spouse' | 'child' | 'parent' | 'sibling'; 
+export type FamilyRelation = 'spouse' | 'child' | 'parent' | 'sibling';
+
+export interface WeeklyRecord {
+  week: number;
+  treasury: number;
+  revenue: number;
+  expenses: number;
+  workerCount: number;
+  averageSatisfaction: number;
+  production: number;
+}
+
+export interface TutorialState {
+  stage: TutorialStage;
+  completed: boolean;
+  currentStep: number;
+  conditions: TutorialConditions;
+}
+
+export interface TutorialConditions {
+  hasViewedWorkers: boolean;
+  hasAdjustedSalary: boolean;
+  hasSalaryUiShown: boolean;
+  hasAssignedWorker: boolean;
+  hasViewedTreasury: boolean;
+  hasBuiltBarracks: boolean;
+  hasAdvancedWeek: boolean;
+}
+
+export enum TutorialStage {
+  INTRODUCTION = 'Introduction',
+  SALARY_SETTING = 'Salary Setting',
+  WORKER_MANAGEMENT = 'Worker Management',
+  BUILDING_CONSTRUCTION = 'Building Construction',
+  COMPLETED = 'Completed'
+}
+
+export interface Notification {
+  id: string;
+  message: string;
+  type: NotificationType;
+  read: boolean;
+  week: number;
+}
+
+export enum NotificationType {
+  INFO = 'Info',
+  WARNING = 'Warning',
+  CRITICAL = 'Critical',
+  EVENT = 'Event'
+}
+
+export enum GameSpeed {
+  PAUSED = 'Paused',
+  NORMAL = 'Normal',
+  FAST = 'Fast'
+}
+
+export interface SecretaryState {
+  currentMessage: string;
+  messageHistory: string[];
+}
+
+export type GameDate = {
+  year: number;
+  month: number;
+  day: number;
+  dayOfWeek: number;
+}; 

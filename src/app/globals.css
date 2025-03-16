@@ -51,6 +51,15 @@ body {
   .page-footer {
     @apply py-2 text-center border-t-2 border-gray-800/30 bg-white/30 backdrop-blur-sm;
   }
+
+  /* Add new tutorial-related styles */
+  .control-panel {
+    @apply transition-all duration-300;
+  }
+
+  .control-panel-disabled {
+    @apply opacity-50 pointer-events-none;
+  }
 }
 
 /* Ink splatter animation for hover effects */
