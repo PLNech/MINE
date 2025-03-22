@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGameState } from '@/lib/context/GameContext';
 import { DailyTransaction } from '@/lib/types/types';
 import LineChart from '../charts/LineChart';
@@ -21,6 +21,7 @@ import ClientOnly from '@/components/ClientOnly';
 export default function SalaryCeremony() {
   const { state, dispatch } = useGameState();
   const [activeTab, setActiveTab] = useState<'overview' | 'production' | 'workforce' | 'trends'>('overview');
+  const [timeLeft, setTimeLeft] = useState(10);
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -170,351 +171,428 @@ export default function SalaryCeremony() {
     return (isPositive === positiveIsGood) ? "text-green-600" : "text-red-600";
   };
   
+  // Reset timer function
+  const resetTimer = () => {
+    console.log('Timer reset to 10s');
+    setTimeLeft(10);
+  };
+
+  // Handle close
+  const handleClose = () => {
+    console.log('Attempting to close ceremony, current isCeremonyActive:', state.isCeremonyActive);
+    dispatch({ type: 'CLOSE_CEREMONY' });
+    console.log('Ceremony close dispatched');
+  };
+
+  // Modified auto-close effect
+  useEffect(() => {
+    console.log('Timer effect running, time left:', timeLeft, 'isCeremonyActive:', state.isCeremonyActive);
+    
+    if (timeLeft <= 0) {
+      console.log('Timer reached 0, closing ceremony');
+      handleClose();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      console.log('Decreasing timer from', timeLeft);
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+
+    return () => {
+      console.log('Cleaning up timer');
+      clearTimeout(timer);
+    };
+  }, [timeLeft]);
+
+  // Debug component to show state
+  const DebugInfo = () => {
+    if (process.env.NODE_ENV === 'development') {
+      return (
+        <div className="fixed top-0 right-0 bg-black/50 text-white p-2 text-xs z-[60]">
+          Time Left: {timeLeft}s<br />
+          Ceremony Active: {state.isCeremonyActive ? 'Yes' : 'No'}<br />
+          Last Action: CLOSE_CEREMONY
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Modify tab click handler to reset timer
+  const handleTabClick = (tab: 'overview' | 'production' | 'workforce' | 'trends') => {
+    setActiveTab(tab);
+    resetTimer();
+  };
+
   return (
     <ClientOnly>
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-y-auto py-8">
-        <div className="bg-amber-50 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-amber-200">
-            <h2 className="text-2xl font-bold text-amber-900">Weekly Financial Summary</h2>
-            <p className="text-amber-700">Week {state.currentWeek - 1} Report</p>
-          </div>
-          
-          {/* Tab navigation */}
-          <div className="flex border-b border-amber-200">
-            <button 
-              className={`px-4 py-2 ${activeTab === 'overview' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
-              onClick={() => setActiveTab('overview')}
-            >
-              Overview
-            </button>
-            <button 
-              className={`px-4 py-2 ${activeTab === 'production' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
-              onClick={() => setActiveTab('production')}
-            >
-              Production
-            </button>
-            <button 
-              className={`px-4 py-2 ${activeTab === 'workforce' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
-              onClick={() => setActiveTab('workforce')}
-            >
-              Workforce
-            </button>
-            <button 
-              className={`px-4 py-2 ${activeTab === 'trends' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
-              onClick={() => setActiveTab('trends')}
-            >
-              Trends
-            </button>
-          </div>
-          
-          <div className="p-6">
-            {/* Overview Tab */}
-            {activeTab === 'overview' && (
-              <div>
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div className="bg-amber-100 p-4 rounded-md">
-                    <h3 className="text-lg font-bold text-amber-900 mb-3">Profit & Loss</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-amber-800">Total Revenue:</span>
-                        <span className="font-medium">{formatCurrency(weeklyRevenue)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-amber-800">Total Expenses:</span>
-                        <span className="font-medium text-red-600">-{formatCurrency(weeklyExpenses)}</span>
-                      </div>
-                      <div className="border-t border-amber-200 pt-2 flex justify-between font-bold">
-                        <span className="text-amber-900">Net Profit:</span>
-                        <span className={weeklyProfit >= 0 ? "text-green-600" : "text-red-600"}>
-                          {formatCurrency(weeklyProfit)}
-                        </span>
+      <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
+        <DebugInfo />
+        <div className="bg-amber-50 rounded-lg shadow-xl max-w-6xl w-full my-8 flex flex-col max-h-[calc(100vh-8rem)]">
+          <div className="overflow-y-auto flex-1">
+            <div className="p-6 border-b border-amber-200">
+              <h2 className="text-2xl font-bold text-amber-900">Weekly Financial Summary</h2>
+              <p className="text-amber-700">Week {state.currentWeek - 1} Report</p>
+            </div>
+            
+            {/* Tab navigation */}
+            <div className="flex border-b border-amber-200">
+              <button 
+                className={`px-4 py-2 ${activeTab === 'overview' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
+                onClick={() => handleTabClick('overview')}
+              >
+                Overview
+              </button>
+              <button 
+                className={`px-4 py-2 ${activeTab === 'production' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
+                onClick={() => handleTabClick('production')}
+              >
+                Production
+              </button>
+              <button 
+                className={`px-4 py-2 ${activeTab === 'workforce' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
+                onClick={() => handleTabClick('workforce')}
+              >
+                Workforce
+              </button>
+              <button 
+                className={`px-4 py-2 ${activeTab === 'trends' ? 'bg-amber-100 border-b-2 border-amber-600' : ''}`}
+                onClick={() => handleTabClick('trends')}
+              >
+                Trends
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <div>
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="bg-amber-100 p-4 rounded-md">
+                      <h3 className="text-lg font-bold text-amber-900 mb-3">Profit & Loss</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-amber-800">Total Revenue:</span>
+                          <span className="font-medium">{formatCurrency(weeklyRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-amber-800">Total Expenses:</span>
+                          <span className="font-medium text-red-600">-{formatCurrency(weeklyExpenses)}</span>
+                        </div>
+                        <div className="border-t border-amber-200 pt-2 flex justify-between font-bold">
+                          <span className="text-amber-900">Net Profit:</span>
+                          <span className={weeklyProfit >= 0 ? "text-green-600" : "text-red-600"}>
+                            {formatCurrency(weeklyProfit)}
+                          </span>
+                        </div>
+                        
+                        <div className="text-sm mt-1">
+                          <span className="text-amber-800">Profit Margin:</span>
+                          <span className={`float-right ${profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {profitMargin.toFixed(1)}%
+                          </span>
+                        </div>
+                        
+                        {previousRecord && (
+                          <div className="text-xs mt-2">
+                            <span className={getChangeStyle(weeklyProfit, previousRecord.profit)}>
+                              {getPercentChange(weeklyProfit, previousRecord.profit)} from last week
+                            </span>
+                          </div>
+                        )}
                       </div>
                       
-                      <div className="text-sm mt-1">
-                        <span className="text-amber-800">Profit Margin:</span>
-                        <span className={`float-right ${profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {profitMargin.toFixed(1)}%
-                        </span>
+                      <div className="mt-6">
+                        <h4 className="font-medium text-amber-800 mb-2">Weekly Expense Breakdown</h4>
+                        <div className="h-64">
+                          <PieChart 
+                            data={chartData.expenseBreakdown} 
+                            height={200} 
+                            width={300}
+                            tooltipFormatter={formatCurrency}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="bg-amber-100 p-4 rounded-md mb-4">
+                        <h3 className="text-lg font-bold text-amber-900 mb-3">Treasury</h3>
+                        <div className="text-center mb-3">
+                          <div className="text-3xl font-bold text-amber-900">
+                            {formatCurrency(state.treasury)}
+                          </div>
+                          
+                          {previousRecord && (
+                            <div className={`text-sm ${getChangeStyle(state.treasury, previousRecord.treasury)}`}>
+                              {getPercentChange(state.treasury, previousRecord.treasury)} from last week
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-2">
+                          <h4 className="font-medium text-amber-800 mb-2">Treasury Balance Trend</h4>
+                          <LineChart 
+                            data={chartData.treasuryHistory}
+                            width={300}
+                            height={160}
+                            tooltipFormatter={formatCurrency}
+                          />
+                        </div>
                       </div>
                       
-                      {previousRecord && (
-                        <div className="text-xs mt-2">
-                          <span className={getChangeStyle(weeklyProfit, previousRecord.profit)}>
-                            {getPercentChange(weeklyProfit, previousRecord.profit)} from last week
+                      <div className="bg-amber-100 p-4 rounded-md">
+                        <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Income vs Expenses</h3>
+                        <StackedBarChart 
+                          data={chartData.stackedExpenseData}
+                          categories={['Maintenance', 'Salaries', 'Upgrades', 'Construction']}
+                          width={300}
+                          height={200}
+                          tooltipFormatter={formatCurrency}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-amber-100 p-4 rounded-md mb-6">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">Daily Performance</h3>
+                    
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="font-medium text-amber-800 mb-2">Daily Revenue</h4>
+                        <BarChart 
+                          data={chartData.revenueData}
+                          width={400}
+                          height={200}
+                          tooltipFormatter={formatCurrency}
+                        />
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-medium text-amber-800 mb-2">Daily Production</h4>
+                        <BarChart 
+                          data={chartData.productionData}
+                          width={400}
+                          height={200}
+                          tooltipFormatter={(v) => `${v.toFixed(1)} tons`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="bg-amber-100 p-3 rounded-md">
+                      <div className="text-sm text-amber-800">Mineral Production</div>
+                      <div className="text-xl font-bold text-amber-900">
+                        {currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0).toFixed(0)} tons
+                      </div>
+                      
+                      {previousWeekTransactions.length > 0 && (
+                        <div className="text-xs mt-1">
+                          <span className={getChangeStyle(
+                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
+                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
+                          )}>
+                            {getPercentChange(
+                              currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
+                              previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
+                            )}
                           </span>
                         </div>
                       )}
                     </div>
                     
-                    <div className="mt-6">
-                      <h4 className="font-medium text-amber-800 mb-2">Weekly Expense Breakdown</h4>
-                      <div className="h-64">
-                        <PieChart 
-                          data={chartData.expenseBreakdown} 
-                          height={200} 
-                          width={300}
-                          tooltipFormatter={formatCurrency}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="bg-amber-100 p-4 rounded-md mb-4">
-                      <h3 className="text-lg font-bold text-amber-900 mb-3">Treasury</h3>
-                      <div className="text-center mb-3">
-                        <div className="text-3xl font-bold text-amber-900">
-                          {formatCurrency(state.treasury)}
-                        </div>
-                        
-                        {previousRecord && (
-                          <div className={`text-sm ${getChangeStyle(state.treasury, previousRecord.treasury)}`}>
-                            {getPercentChange(state.treasury, previousRecord.treasury)} from last week
-                          </div>
-                        )}
+                    <div className="bg-amber-100 p-3 rounded-md">
+                      <div className="text-sm text-amber-800">Average Mineral Price</div>
+                      <div className="text-xl font-bold text-amber-900">
+                        {formatCurrency(
+                          currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / 
+                          Math.max(1, currentWeekTransactions.length)
+                        )}/ton
                       </div>
                       
-                      <div className="mt-2">
-                        <h4 className="font-medium text-amber-800 mb-2">Treasury Balance Trend</h4>
+                      {previousWeekTransactions.length > 0 && (
+                        <div className="text-xs mt-1">
+                          <span className={getChangeStyle(
+                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
+                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
+                          )}>
+                            {getPercentChange(
+                              currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
+                              previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="bg-amber-100 p-3 rounded-md">
+                      <div className="text-sm text-amber-800">Profit per Worker</div>
+                      <div className="text-xl font-bold text-amber-900">
+                        {state.workerCount > 0 
+                          ? formatCurrency(weeklyProfit / state.workerCount) 
+                          : formatCurrency(0)}
+                      </div>
+                      
+                      {previousRecord && previousRecord.workerCount > 0 && (
+                        <div className="text-xs mt-1">
+                          <span className={getChangeStyle(
+                            weeklyProfit / state.workerCount,
+                            previousRecord.profit / previousRecord.workerCount
+                          )}>
+                            {getPercentChange(
+                              weeklyProfit / state.workerCount,
+                              previousRecord.profit / previousRecord.workerCount
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Production Tab */}
+              {activeTab === 'production' && (
+                <div>
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="bg-amber-100 p-4 rounded-md">
+                      <h3 className="text-lg font-bold text-amber-900 mb-3">Production Efficiency</h3>
+                      <div className="mb-4">
                         <LineChart 
-                          data={chartData.treasuryHistory}
-                          width={300}
-                          height={160}
+                          data={chartData.workerEfficiency.productivityData}
+                          width={400}
+                          height={200}
+                          title="Worker Productivity"
+                          yLabel="Efficiency"
+                          tooltipFormatter={(v) => `${v.toFixed(2)}x`}
+                        />
+                      </div>
+                      
+                      <div className="text-sm p-3 bg-amber-50 rounded-md">
+                        <p className="text-amber-800 mb-2">
+                          <strong>Worker Productivity Analysis:</strong> Your workforce's productivity is affected by both satisfaction and health metrics.
+                        </p>
+                        <p className="text-amber-800">
+                          Current productivity multiplier: <span className="font-medium">{
+                            (0.5 + (state.workerSatisfaction * 0.25) / 100 + (state.workerHealth * 0.25) / 100).toFixed(2)
+                          }x</span>
+                        </p>
+                        <p className="text-xs text-amber-700 mt-2">
+                          Each worker produces {(state.baseProductionPerWorker * 
+                            (0.5 + (state.workerSatisfaction * 0.25) / 100 + (state.workerHealth * 0.25) / 100)).toFixed(1)} tons per day.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-amber-100 p-4 rounded-md">
+                      <h3 className="text-lg font-bold text-amber-900 mb-3">Production vs Industry Average</h3>
+                      <div className="mb-4">
+                        <LineChart 
+                          data={[...chartData.productionData, ...chartData.industryAvgProduction]}
+                          width={400}
+                          height={200}
+                          title="Daily Production Comparison"
+                          yLabel="Tons"
+                          tooltipFormatter={(v) => `${v.toFixed(1)} tons`}
+                        />
+                      </div>
+                      
+                      <div className="text-sm p-3 bg-amber-50 rounded-md">
+                        <p className="text-amber-800 mb-2">
+                          <strong>Competitive Analysis:</strong> Your production is currently {
+                            chartData.productionData.reduce((sum, d) => sum + d.value, 0).toFixed(1)
+                          } tons, compared to the industry average of {
+                            chartData.industryAvgProduction.reduce((sum, d) => sum + d.value, 0).toFixed(1)
+                          } tons.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Workforce Tab */}
+              {activeTab === 'workforce' && (
+                <div>
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="bg-amber-100 p-4 rounded-md">
+                      <h3 className="text-lg font-bold text-amber-900 mb-3">Worker Satisfaction</h3>
+                      <div className="mb-4">
+                        <LineChart 
+                          data={chartData.workerEfficiency.satisfactionData}
+                          width={400}
+                          height={200}
+                          title="Worker Satisfaction"
+                          yLabel="Satisfaction"
+                        />
+                      </div>
+                      <div className="text-sm p-3 bg-amber-50 rounded-md">
+                        <p className="text-amber-800 mb-2">
+                          <strong>Satisfaction Impact:</strong> Worker satisfaction directly affects productivity.
+                        </p>
+                        <p className="text-amber-800">
+                          Current satisfaction multiplier: <span className="font-medium">{
+                            (0.5 + (state.workerSatisfaction * 0.25) / 100).toFixed(2)
+                          }x</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Trends Tab */}
+              {activeTab === 'trends' && (
+                <div>
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="bg-amber-100 p-4 rounded-md">
+                      <h3 className="text-lg font-bold text-amber-900 mb-3">Profit & Loss Trends</h3>
+                      <div className="mb-4">
+                        <LineChart 
+                          data={chartData.profitHistory}
+                          width={400}
+                          height={200}
+                          title="Profit & Loss"
+                          yLabel="USD"
                           tooltipFormatter={formatCurrency}
                         />
                       </div>
-                    </div>
-                    
-                    <div className="bg-amber-100 p-4 rounded-md">
-                      <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Income vs Expenses</h3>
-                      <StackedBarChart 
-                        data={chartData.stackedExpenseData}
-                        categories={['Maintenance', 'Salaries', 'Upgrades', 'Construction']}
-                        width={300}
-                        height={200}
-                        tooltipFormatter={formatCurrency}
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-amber-100 p-4 rounded-md mb-6">
-                  <h3 className="text-lg font-bold text-amber-900 mb-3">Daily Performance</h3>
-                  
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="font-medium text-amber-800 mb-2">Daily Revenue</h4>
-                      <BarChart 
-                        data={chartData.revenueData}
-                        width={400}
-                        height={200}
-                        tooltipFormatter={formatCurrency}
-                      />
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium text-amber-800 mb-2">Daily Production</h4>
-                      <BarChart 
-                        data={chartData.productionData}
-                        width={400}
-                        height={200}
-                        tooltipFormatter={(v) => `${v.toFixed(1)} tons`}
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="bg-amber-100 p-3 rounded-md">
-                    <div className="text-sm text-amber-800">Mineral Production</div>
-                    <div className="text-xl font-bold text-amber-900">
-                      {currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0).toFixed(0)} tons
-                    </div>
-                    
-                    {previousWeekTransactions.length > 0 && (
-                      <div className="text-xs mt-1">
-                        <span className={getChangeStyle(
-                          currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
-                          previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
-                        )}>
-                          {getPercentChange(
-                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
-                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
-                          )}
-                        </span>
+                      <div className="text-sm p-3 bg-amber-50 rounded-md">
+                        <p className="text-amber-800 mb-2">
+                          <strong>Financial Performance:</strong> Track your profit and loss over time. 
+                        </p>
+                        <p className="text-amber-800">
+                          Current profit margin: <span className="font-medium">{
+                            (latestRecord?.profit || 0) / (latestRecord?.revenue || 1)
+                          }%</span>
+                        </p>
                       </div>
-                    )}
-                  </div>
-                  
-                  <div className="bg-amber-100 p-3 rounded-md">
-                    <div className="text-sm text-amber-800">Average Mineral Price</div>
-                    <div className="text-xl font-bold text-amber-900">
-                      {formatCurrency(
-                        currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / 
-                        Math.max(1, currentWeekTransactions.length)
-                      )}/ton
-                    </div>
-                    
-                    {previousWeekTransactions.length > 0 && (
-                      <div className="text-xs mt-1">
-                        <span className={getChangeStyle(
-                          currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
-                          previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
-                        )}>
-                          {getPercentChange(
-                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
-                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="bg-amber-100 p-3 rounded-md">
-                    <div className="text-sm text-amber-800">Profit per Worker</div>
-                    <div className="text-xl font-bold text-amber-900">
-                      {state.workerCount > 0 
-                        ? formatCurrency(weeklyProfit / state.workerCount) 
-                        : formatCurrency(0)}
-                    </div>
-                    
-                    {previousRecord && previousRecord.workerCount > 0 && (
-                      <div className="text-xs mt-1">
-                        <span className={getChangeStyle(
-                          weeklyProfit / state.workerCount,
-                          previousRecord.profit / previousRecord.workerCount
-                        )}>
-                          {getPercentChange(
-                            weeklyProfit / state.workerCount,
-                            previousRecord.profit / previousRecord.workerCount
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Production Tab */}
-            {activeTab === 'production' && (
-              <div>
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div className="bg-amber-100 p-4 rounded-md">
-                    <h3 className="text-lg font-bold text-amber-900 mb-3">Production Efficiency</h3>
-                    <div className="mb-4">
-                      <LineChart 
-                        data={chartData.workerEfficiency.productivityData}
-                        width={400}
-                        height={200}
-                        title="Worker Productivity"
-                        yLabel="Efficiency"
-                        tooltipFormatter={(v) => `${v.toFixed(2)}x`}
-                      />
-                    </div>
-                    
-                    <div className="text-sm p-3 bg-amber-50 rounded-md">
-                      <p className="text-amber-800 mb-2">
-                        <strong>Worker Productivity Analysis:</strong> Your workforce's productivity is affected by both satisfaction and health metrics.
-                      </p>
-                      <p className="text-amber-800">
-                        Current productivity multiplier: <span className="font-medium">{
-                          (0.5 + (state.workerSatisfaction * 0.25) / 100 + (state.workerHealth * 0.25) / 100).toFixed(2)
-                        }x</span>
-                      </p>
-                      <p className="text-xs text-amber-700 mt-2">
-                        Each worker produces {(state.baseProductionPerWorker * 
-                          (0.5 + (state.workerSatisfaction * 0.25) / 100 + (state.workerHealth * 0.25) / 100)).toFixed(1)} tons per day.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="bg-amber-100 p-4 rounded-md">
-                    <h3 className="text-lg font-bold text-amber-900 mb-3">Production vs Industry Average</h3>
-                    <div className="mb-4">
-                      <LineChart 
-                        data={[...chartData.productionData, ...chartData.industryAvgProduction]}
-                        width={400}
-                        height={200}
-                        title="Daily Production Comparison"
-                        yLabel="Tons"
-                        tooltipFormatter={(v) => `${v.toFixed(1)} tons`}
-                      />
-                    </div>
-                    
-                    <div className="text-sm p-3 bg-amber-50 rounded-md">
-                      <p className="text-amber-800 mb-2">
-                        <strong>Competitive Analysis:</strong> Your production is currently {
-                          chartData.productionData.reduce((sum, d) => sum + d.value, 0).toFixed(1)
-                        } tons, compared to the industry average of {
-                          chartData.industryAvgProduction.reduce((sum, d) => sum + d.value, 0).toFixed(1)
-                        } tons.
-                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {/* Workforce Tab */}
-            {activeTab === 'workforce' && (
-              <div>
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div className="bg-amber-100 p-4 rounded-md">
-                    <h3 className="text-lg font-bold text-amber-900 mb-3">Worker Satisfaction</h3>
-                    <div className="mb-4">
-                      <LineChart 
-                        data={chartData.workerEfficiency.satisfactionData}
-                        width={400}
-                        height={200}
-                        title="Worker Satisfaction"
-                        yLabel="Satisfaction"
-                      />
-                    </div>
-                    <div className="text-sm p-3 bg-amber-50 rounded-md">
-                      <p className="text-amber-800 mb-2">
-                        <strong>Satisfaction Impact:</strong> Worker satisfaction directly affects productivity.
-                      </p>
-                      <p className="text-amber-800">
-                        Current satisfaction multiplier: <span className="font-medium">{
-                          (0.5 + (state.workerSatisfaction * 0.25) / 100).toFixed(2)
-                        }x</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Trends Tab */}
-            {activeTab === 'trends' && (
-              <div>
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div className="bg-amber-100 p-4 rounded-md">
-                    <h3 className="text-lg font-bold text-amber-900 mb-3">Profit & Loss Trends</h3>
-                    <div className="mb-4">
-                      <LineChart 
-                        data={chartData.profitHistory}
-                        width={400}
-                        height={200}
-                        title="Profit & Loss"
-                        yLabel="USD"
-                        tooltipFormatter={formatCurrency}
-                      />
-                    </div>
-                    <div className="text-sm p-3 bg-amber-50 rounded-md">
-                      <p className="text-amber-800 mb-2">
-                        <strong>Financial Performance:</strong> Track your profit and loss over time. 
-                      </p>
-                      <p className="text-amber-800">
-                        Current profit margin: <span className="font-medium">{
-                          (latestRecord?.profit || 0) / (latestRecord?.revenue || 1)
-                        }%</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 w-full bg-amber-100 p-4 border-t border-amber-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-amber-800">
+                Closing in {timeLeft} seconds...
+              </span>
+              <button 
+                onClick={() => dispatch({ type: 'CLOSE_CEREMONY' })}
+                className="text-sm text-amber-800 hover:text-amber-900 underline"
+              >
+                Close Now
+              </button>
+            </div>
+            <div className="h-2 bg-amber-200 rounded-full">
+              <div 
+                className="h-full bg-amber-600 rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${Math.max(0, (timeLeft / 10) * 100)}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>
