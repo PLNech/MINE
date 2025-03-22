@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
 import { GameSpeed, GameState, BuildingType } from '../types/types';
-import { INITIAL_GAME_STATE, assignWorkers, closeCeremony, constructBuilding, setSalary, setGameSpeed, updateGameState, acknowledgeIntro } from '../game-engine/gameState';
+import { INITIAL_GAME_STATE, assignWorkers, closeCeremony, constructBuilding, setSalary, setGameSpeed, updateGameState, acknowledgeIntro, purchaseUpgrade } from '../game-engine/gameState';
 
 type GameAction =
   | { type: 'UPDATE_STATE' }
@@ -12,7 +12,8 @@ type GameAction =
   | { type: 'ASSIGN_WORKERS'; payload: { buildingId: string; workerCount: number } }
   | { type: 'CLOSE_CEREMONY' }
   | { type: 'ACKNOWLEDGE_INTRO' }
-  | { type: 'LOAD_SAVE'; payload: GameState };
+  | { type: 'LOAD_SAVE'; payload: GameState }
+  | { type: 'PURCHASE_UPGRADE'; payload: string };
 
 type GameDispatch = (action: GameAction) => void;
 
@@ -40,6 +41,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return acknowledgeIntro(state);
     case 'LOAD_SAVE':
       return action.payload;
+    case 'PURCHASE_UPGRADE':
+      return purchaseUpgrade(state, action.payload);
     default:
       return state;
   }

@@ -34,22 +34,26 @@ export interface BuildingEffect {
   value: number;
 }
 
+export interface BuildingUnlockRequirement {
+  townScale: TownScale;
+  treasury?: number;
+}
+
 export interface Building {
   id: string;
-  type: BuildingType;
   name: string;
-  constructionProgress: number; // 0-100
-  constructionCost: number;
-  isOperational: boolean;
-  maintenanceCost: number;
-  workerCapacity: number;
-  assignedWorkers: number;
-  effects: BuildingEffect[];
+  type: BuildingType;
   description: string;
-  unlockRequirement?: {
-    townScale: TownScale;
-    treasury?: number;
-  };
+  constructionCost: number;
+  maintenanceCost: number;
+  effects: BuildingEffect[];
+  workerCapacity: number;  // Will be 0 for buildings like barracks that don't need workers
+  assignedWorkers: number;
+  isOperational: boolean;
+  constructionProgress: number;
+  maxCount?: number;  // Maximum number of this building type allowed
+  currentCount?: number; // Current count of this building type
+  unlockRequirement?: BuildingUnlockRequirement;
 }
 
 export interface FinancialRecord {
@@ -63,6 +67,42 @@ export interface FinancialRecord {
   workerHealth: number;
   mineralPrice: number;
   production: number;
+}
+
+export enum UpgradeType {
+  MINE_CAPACITY = 'Mine Capacity',
+  MARKET_STABILITY = 'Market Stability',
+  HOUSING_EFFICIENCY = 'Housing Efficiency'
+}
+
+export interface Upgrade {
+  id: string;
+  type: UpgradeType;
+  name: string;
+  description: string;
+  maxLevel: number;
+  currentLevel: number;
+  baseCost: number;
+  costMultiplier: number; // How much the cost increases per level
+  effect: {
+    type: EffectType | 'priceStability' | 'mineCapacity' | 'housingEfficiency';
+    valuePerLevel: number;
+  };
+}
+
+export interface DailyTransaction {
+  day: number;
+  week: number;
+  mineralExtraction: number;
+  revenue: number;
+  expenses: {
+    maintenance: number;
+    salaries?: number; // Only on the last day of the week
+    upgrades?: number; // Only when upgrades are purchased
+    construction?: number; // Only when construction happens
+  };
+  mineralPrice: number;
+  netChange: number;
 }
 
 export interface GameState {
@@ -110,4 +150,13 @@ export interface GameState {
   
   // First-time experience
   hasSeenIntro: boolean;
+  
+  // Upgrades
+  upgrades: Upgrade[];
+  
+  // Daily economic tracking
+  dailyTransactions: DailyTransaction[];
+  todayExtraction: number;
+  todayRevenue: number;
+  todayExpenses: number;
 } 

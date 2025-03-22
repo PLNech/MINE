@@ -2,9 +2,15 @@
 
 import { useGameState } from '@/lib/context/GameContext';
 import { BuildingType, EffectType } from '@/lib/types/types';
+import { useState, useEffect } from 'react';
 
 export default function GameMap() {
   const { state } = useGameState();
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -24,7 +30,27 @@ export default function GameMap() {
     return effect ? effect.value : 0;
   };
   
-  // For the MVP, we'll represent the town as a hierarchical text structure
+  // Loading skeleton for server-side rendering
+  if (!isClient) {
+    return (
+      <div className="bg-amber-100 p-6 rounded-lg shadow-md h-full animate-pulse">
+        <div className="h-8 bg-amber-200 rounded w-48 mb-6"></div>
+        <div className="border-4 border-amber-800 p-4 rounded-lg mb-8 bg-amber-50/50">
+          <div className="h-6 bg-amber-200 rounded w-3/4 mb-4"></div>
+          <div className="h-4 bg-amber-200 rounded w-1/2 mb-4"></div>
+          <div className="space-y-2">
+            <div className="h-4 bg-amber-200 rounded w-full"></div>
+            <div className="h-4 bg-amber-200 rounded w-full"></div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="h-32 bg-amber-200 rounded"></div>
+          <div className="h-32 bg-amber-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="bg-amber-100 p-6 rounded-lg shadow-md h-full">
       <h2 className="text-2xl font-bold text-amber-900 mb-6">Town Map</h2>
@@ -69,9 +95,11 @@ export default function GameMap() {
             >
               <h4 className="font-bold text-amber-900 flex justify-between">
                 <span>{building.name}</span>
-                <span className="text-sm font-normal">
-                  Workers: {building.assignedWorkers} / {building.workerCapacity}
-                </span>
+                {building.workerCapacity > 0 && (
+                  <span className="text-sm font-normal">
+                    Workers: {building.assignedWorkers} / {building.workerCapacity}
+                  </span>
+                )}
               </h4>
               <p className="text-sm text-amber-800 my-2">{building.description}</p>
               <div className="text-xs text-amber-700 space-y-1">

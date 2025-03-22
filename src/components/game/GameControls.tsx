@@ -1,12 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameState } from '@/lib/context/GameContext';
-import { BuildingType } from '@/lib/types/types';
+import { BuildingType, EffectType } from '@/lib/types/types';
+import UpgradesPanel from './UpgradesPanel';
 
 export default function GameControls() {
   const { state, dispatch } = useGameState();
-  const [salary, setSalary] = useState(state.salary);
+  const [isClient, setIsClient] = useState(false);
+  const [salary, setSalary] = useState(50); // Start with a default value
+  const [hoveredBuildingId, setHoveredBuildingId] = useState<string | null>(null);
+  
+  // Set isClient and sync salary with game state after mount
+  useEffect(() => {
+    setIsClient(true);
+    setSalary(state.salary);
+  }, [state.salary]);
   
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSalary = parseInt(e.target.value, 10);
@@ -27,17 +36,41 @@ export default function GameControls() {
   };
   
   // Calculate estimated arrivals based on current salary
-  const calculateEstimatedArrivals = () => {
+  const calculateEstimatedArrivals = (salaryValue = salary) => {
     const migrationFactor = 50;
     const minSalary = 10;
     const maxSalary = 100;
     
     const availableHousing = state.maxWorkerCapacity - state.workerCount;
-    let arrivals = Math.floor((salary - minSalary) / (maxSalary - minSalary) * migrationFactor);
+    let arrivals = Math.floor((salaryValue - minSalary) / (maxSalary - minSalary) * migrationFactor);
     arrivals = Math.min(arrivals, availableHousing);
     arrivals = Math.max(arrivals, 0);
     
     return arrivals;
+  };
+  
+  // Calculate optimal salary based on current production metrics
+  const calculateOptimalSalary = () => {
+    const mineralPrice = state.currentMineralPrice;
+    const baseProductionPerWorker = state.baseProductionPerWorker * 7; // Weekly production
+    
+    // Simple model: each worker should produce at least 3x their salary
+    const optimalSalary = Math.round(mineralPrice * baseProductionPerWorker / 3);
+    return Math.max(10, Math.min(100, optimalSalary));
+  };
+  
+  const optimalSalary = calculateOptimalSalary();
+  
+  // Get satisfaction impact based on current salary
+  const getSatisfactionImpact = (currentSalary = salary) => {
+    const regionalAverage = 50; // Simplification for now
+    const difference = currentSalary - regionalAverage;
+    
+    if (difference >= 20) return { text: "Very High", style: "text-green-600" };
+    if (difference >= 10) return { text: "High", style: "text-green-500" };
+    if (difference >= 0) return { text: "Average", style: "text-amber-500" };
+    if (difference >= -10) return { text: "Low", style: "text-orange-500" };
+    return { text: "Very Low", style: "text-red-600" };
   };
   
   // Filter buildings that can be constructed based on unlocks
@@ -61,118 +94,490 @@ export default function GameControls() {
     return meetsScaleRequirement && meetsTreasuryRequirement;
   });
   
+  // Get today's economic performance
+  const dailyChangeColor = state.todayRevenue > state.todayExpenses 
+    ? 'text-green-600' 
+    : 'text-red-600';
+  
+  // Calculate building efficiency (profit per worker)
+  const calculateBuildingEfficiency = (buildingId: string) => {
+    const building = state.buildings.find(b => b.id === buildingId);
+    if (!building || !building.isOperational) return { value: 0, text: "N/A" };
+    
+    if (building.type === BuildingType.MINE) {
+      const dailyProduction = building.assignedWorkers * state.baseProductionPerWorker;
+      const dailyRevenue = dailyProduction * state.currentMineralPrice;
+      const dailyMaintenance = building.maintenanceCost / 7;
+      const dailyProfit = dailyRevenue - dailyMaintenance;
+      
+      const efficiencyPerWorker = building.assignedWorkers > 0 
+        ? dailyProfit / building.assignedWorkers 
+        : 0;
+      
+      let efficiencyText = "Poor";
+      let textColor = "text-red-600";
+      
+      if (efficiencyPerWorker > 30) {
+        efficiencyText = "Excellent";
+        textColor = "text-green-600";
+      } else if (efficiencyPerWorker > 20) {
+        efficiencyText = "Good";
+        textColor = "text-green-500";
+      } else if (efficiencyPerWorker > 10) {
+        efficiencyText = "Average";
+        textColor = "text-amber-500";
+      } else if (efficiencyPerWorker > 0) {
+        efficiencyText = "Below Average";
+        textColor = "text-orange-500";
+      }
+      
+      return { 
+        value: efficiencyPerWorker,
+        text: efficiencyText,
+        color: textColor
+      };
+    }
+    
+    return { value: 0, text: "N/A" };
+  };
+  
+  // Building tooltip content
+  const getBuildingTooltip = (buildingId: string) => {
+    const building = state.buildings.find(b => b.id === buildingId);
+    if (!building) return null;
+    
+    const efficiency = calculateBuildingEfficiency(buildingId);
+    
+    return (
+      <div className="absolute z-10 bg-amber-50 border border-amber-300 rounded-md shadow-lg p-3 w-64 text-sm">
+        <h4 className="font-semibold text-amber-900 mb-1">{building.name}</h4>
+        <p className="text-xs text-amber-700 mb-2">{building.description}</p>
+        
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span>Maintenance:</span>
+            <span>{formatCurrency(building.maintenanceCost)}/week</span>
+          </div>
+          
+          {building.isOperational && building.workerCapacity > 0 && (
+            <>
+              <div className="flex justify-between">
+                <span>Workers:</span>
+                <span>{building.assignedWorkers} / {building.workerCapacity}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Efficiency:</span>
+                <span className={efficiency.color}>{efficiency.text}</span>
+              </div>
+            </>
+          )}
+          
+          {!building.isOperational && building.constructionProgress > 0 && (
+            <div className="flex justify-between">
+              <span>Construction:</span>
+              <span>{building.constructionProgress}% complete</span>
+            </div>
+          )}
+          
+          <div className="mt-2 pt-2 border-t border-amber-200">
+            <div className="text-xs font-medium mb-1">Effects:</div>
+            {building.effects.map((effect, index) => (
+              <div key={index} className="grid grid-cols-2 text-xs">
+                <span>{effect.type}:</span>
+                <span className={effect.value >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {effect.value > 0 ? '+' : ''}{effect.value}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Enhanced worker assignment section
+  const renderWorkerAssignments = () => {
+    const operationalBuildings = state.buildings
+      .filter(building => building.isOperational && building.workerCapacity > 0);
+    
+    if (operationalBuildings.length === 0) {
+      return <p className="text-amber-800">No buildings available for worker assignment.</p>;
+    }
+    
+    // Calculate unassigned workers
+    const totalAssigned = operationalBuildings.reduce(
+      (sum, building) => sum + building.assignedWorkers, 0
+    );
+    const unassignedWorkers = state.workerCount - totalAssigned;
+    
+    return (
+      <div>
+        <div className="mb-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-amber-900">Worker Assignment</h3>
+          <span className="text-sm bg-amber-200 px-2 py-1 rounded">
+            <span className="font-medium">{unassignedWorkers}</span> unassigned
+          </span>
+        </div>
+        
+        <div className="space-y-4">
+          {operationalBuildings.map((building) => (
+            <div key={building.id} className="border border-amber-300 p-3 rounded-md bg-amber-50/80">
+              <div className="flex justify-between">
+                <div>
+                  <span className="font-semibold text-amber-900">{building.name}</span>
+                  <div className="text-xs text-amber-700 mt-1">
+                    {building.type === BuildingType.MINE ? "Production" : "Service"} building
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-medium">{building.assignedWorkers} / {building.workerCapacity}</span>
+                  <div className="text-xs text-amber-700 mt-1">
+                    {Math.round(building.assignedWorkers / building.workerCapacity * 100)}% staffed
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2 mt-3">
+                <input
+                  type="range"
+                  min="0"
+                  max={building.workerCapacity}
+                  value={building.assignedWorkers}
+                  onChange={(e) => {
+                    dispatch({ 
+                      type: 'ASSIGN_WORKERS', 
+                      payload: { 
+                        buildingId: building.id, 
+                        workerCount: parseInt(e.target.value, 10) 
+                      } 
+                    });
+                  }}
+                  className={`flex-grow h-2 rounded-lg appearance-none cursor-pointer ${
+                    building.assignedWorkers / building.workerCapacity > 0.8 
+                      ? "bg-green-400" 
+                      : building.assignedWorkers / building.workerCapacity > 0.5 
+                        ? "bg-amber-400" 
+                        : "bg-red-300"
+                  }`}
+                />
+                <span className="w-8 text-center">{building.assignedWorkers}</span>
+              </div>
+              
+              {/* Efficiency indicator */}
+              {building.type === BuildingType.MINE && (
+                <div className="mt-2 text-xs">
+                  <span className="text-amber-800">Estimated daily production: </span>
+                  <span className="font-medium">
+                    {(building.assignedWorkers * state.baseProductionPerWorker * 
+                      (0.5 + (state.workerHealth * 0.25) / 100 + (state.workerSatisfaction * 0.25) / 100)
+                    ).toFixed(1)} tons
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  
+  // Update the building list rendering to handle multiple buildings and remove worker display
+  const renderBuildingList = () => {
+    // ... existing code ...
+    
+    // Render all operational buildings in a summary view
+    const operationalBuildings = state.buildings.filter(b => b.isOperational);
+    
+    return (
+      <div>
+        {availableBuildings.length > 0 && (
+          <div className="space-y-4 mb-6">
+            <h3 className="font-medium text-amber-800">Available to Build:</h3>
+            {availableBuildings.map(building => {
+              // Check if we've reached the maximum count for this building
+              const canBuildMore = !building.maxCount || 
+                (building.currentCount || 0) < building.maxCount;
+              
+              return (
+                <div key={building.id} className="border border-amber-300 p-4 rounded-md bg-amber-50/60">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-amber-900">
+                        {building.name}
+                        {building.maxCount && (
+                          <span className="text-xs text-amber-700 ml-2">
+                            ({(building.currentCount || 0)}/{building.maxCount})
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-amber-700 mt-1">{building.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-amber-900">
+                        {formatCurrency(building.constructionCost)}
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        +{formatCurrency(building.maintenanceCost)}/week
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 flex justify-between items-center">
+                    <div>
+                      {building.effects.map((effect, i) => (
+                        <div key={i} className="text-xs">
+                          <span className="text-amber-800">{effect.type}: </span>
+                          <span className={effect.value >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {effect.value > 0 ? '+' : ''}{effect.value}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => dispatch({ type: 'CONSTRUCT_BUILDING', payload: building.type })}
+                      disabled={state.treasury < building.constructionCost || !canBuildMore}
+                      className={`px-4 py-2 rounded ${
+                        !canBuildMore 
+                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : state.treasury < building.constructionCost 
+                            ? 'bg-amber-300 text-amber-600 cursor-not-allowed' 
+                            : 'bg-amber-600 text-white hover:bg-amber-700'
+                      }`}
+                    >
+                      {!canBuildMore ? 'Max Built' : 'Construct'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
+        {operationalBuildings.length > 0 && (
+          <div>
+            <h3 className="font-medium text-amber-800 mb-3">Built Structures:</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {operationalBuildings.map(building => (
+                <div key={building.id} className="border border-amber-300 p-3 rounded-md bg-amber-50/60">
+                  <div className="font-medium text-amber-900">{building.name}</div>
+                  
+                  {/* Only show worker count for buildings with workers */}
+                  {building.workerCapacity > 0 ? (
+                    <div className="text-xs text-amber-700 mt-1">
+                      {building.assignedWorkers}/{building.workerCapacity} workers
+                    </div>
+                  ) : (
+                    <div className="text-xs text-amber-700 mt-1">
+                      {building.effects.find(e => e.type === EffectType.HOUSING) 
+                        ? `Capacity: ${building.effects.find(e => e.type === EffectType.HOUSING)?.value} workers` 
+                        : 'Service building'}
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-amber-600 mt-1">
+                    {formatCurrency(building.maintenanceCost)}/week
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // Early return with loading state if not client-side
+  if (!isClient) {
+    return (
+      <div className="bg-amber-100 p-6 rounded-lg shadow-md animate-pulse">
+        <div className="h-8 bg-amber-200 rounded w-48 mb-4"></div>
+        <div className="space-y-4">
+          <div className="h-24 bg-amber-200 rounded"></div>
+          <div className="h-24 bg-amber-200 rounded"></div>
+          <div className="h-24 bg-amber-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-amber-100 p-6 rounded-lg shadow-md">
+      {/* Enhanced Salary Control */}
       <div className="mb-8">
         <h2 className="text-xl font-bold text-amber-900 mb-4">Weekly Salary</h2>
-        <div className="mb-4">
+        <div className="mb-4 relative">
           <div className="flex justify-between text-sm text-amber-800 mb-1">
             <span>$10</span>
+            <span className="cursor-help underline decoration-dotted">
+              Optimal: {formatCurrency(calculateOptimalSalary())}
+            </span>
             <span>$100</span>
           </div>
+          
           <input
             type="range"
             min="10"
             max="100"
             value={salary}
             onChange={handleSalaryChange}
-            className="w-full h-4 bg-amber-300 rounded-lg appearance-none cursor-pointer"
+            className={`w-full h-4 rounded-lg appearance-none cursor-pointer ${
+              salary < calculateOptimalSalary() - 10 ? "bg-red-300" :
+              salary < calculateOptimalSalary() ? "bg-amber-300" :
+              salary > calculateOptimalSalary() + 10 ? "bg-green-300" : 
+              "bg-green-400"
+            }`}
           />
+          
+          {/* Marker for optimal salary */}
+          <div 
+            className="absolute h-6 w-1 bg-amber-900 top-6" 
+            style={{
+              left: `${((calculateOptimalSalary() - 10) / 90) * 100}%`,
+              transform: 'translateX(-50%)'
+            }}
+          ></div>
         </div>
+        
         <div className="flex justify-between mb-4">
-          <span className="text-lg font-semibold">{formatCurrency(salary)}</span>
+          <div>
+            <span className="text-lg font-semibold">{formatCurrency(salary)}</span>
+            {salary !== state.salary && (
+              <span className="text-xs text-amber-600 ml-2">
+                (Current: {formatCurrency(state.salary)})
+              </span>
+            )}
+          </div>
           <button
             onClick={handleSalarySubmit}
-            className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+            className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 transition-colors"
           >
             Set Salary
           </button>
         </div>
-        <div className="text-sm text-amber-800">
-          <p>Current worker count: {state.workerCount}</p>
-          <p>Estimated new arrivals: {calculateEstimatedArrivals()}</p>
-          <p>Weekly salary expense: {formatCurrency(state.workerCount * salary)}</p>
-          <p>Worker satisfaction: {state.workerSatisfaction.toFixed(0)}%</p>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <p className="mb-1">
+              <span className="text-amber-800">Worker count:</span>
+              <span className="float-right font-medium">{state.workerCount}</span>
+            </p>
+            <p className="mb-1">
+              <span className="text-amber-800">Est. arrivals:</span>
+              <span className="float-right font-medium text-green-600">+{calculateEstimatedArrivals()}</span>
+            </p>
+            <p className="mb-1">
+              <span className="text-amber-800">Weekly cost:</span>
+              <span className="float-right font-medium">{formatCurrency(state.workerCount * salary)}</span>
+            </p>
+            <p>
+              <span className="text-amber-800">Per worker:</span>
+              <span className="float-right font-medium">{formatCurrency(salary)}/week</span>
+            </p>
+          </div>
+          
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <p className="mb-1">
+              <span className="text-amber-800">Satisfaction impact:</span>
+              <span className={`float-right font-medium ${getSatisfactionImpact().style}`}>
+                {getSatisfactionImpact().text}
+              </span>
+            </p>
+            <p className="mb-1">
+              <span className="text-amber-800">Current satisfaction:</span>
+              <span className="float-right font-medium">{state.workerSatisfaction.toFixed(0)}%</span>
+            </p>
+            <p className="mb-1">
+              <span className="text-amber-800">Health:</span>
+              <span className="float-right font-medium">{state.workerHealth.toFixed(0)}%</span>
+            </p>
+            <p>
+              <span className="text-amber-800">Regional avg:</span>
+              <span className="float-right font-medium">{formatCurrency(50)}/week</span>
+            </p>
+          </div>
         </div>
       </div>
       
+      {/* Daily Economic Indicators */}
+      <div className="mb-8 bg-amber-50/80 p-4 rounded-md border border-amber-200">
+        <h2 className="text-xl font-bold text-amber-900 mb-3">Today's Production</h2>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p className="text-amber-800 mb-1">Mineral Extraction</p>
+            <p className="text-xl font-semibold">{state.todayExtraction.toFixed(1)} tons</p>
+          </div>
+          
+          <div>
+            <p className="text-amber-800 mb-1">Revenue</p>
+            <p className="text-xl font-semibold text-green-600">{formatCurrency(state.todayRevenue)}</p>
+          </div>
+          
+          <div>
+            <p className="text-amber-800 mb-1">Expenses</p>
+            <p className="text-xl font-semibold text-red-600">{formatCurrency(state.todayExpenses)}</p>
+          </div>
+        </div>
+        
+        <div className="mt-3 pt-2 border-t border-amber-200">
+          <div className="flex justify-between items-center">
+            <span className="text-amber-800">Net Change</span>
+            <span className={`text-lg font-semibold ${dailyChangeColor}`}>
+              {formatCurrency(state.todayRevenue - state.todayExpenses)}
+            </span>
+          </div>
+          
+          <div className="mt-2 text-xs text-amber-600">
+            <p>Current mineral price: {formatCurrency(state.currentMineralPrice)}/ton</p>
+          </div>
+        </div>
+      </div>
+      
+      <UpgradesPanel />
+      
+      {/* Enhanced Building Section */}
       <div className="mb-8">
         <h2 className="text-xl font-bold text-amber-900 mb-4">Buildings</h2>
-        {availableBuildings.length === 0 ? (
-          <p className="text-amber-800">No buildings available to construct.</p>
-        ) : (
-          <div className="space-y-4">
-            {availableBuildings.map((building) => (
-              <div key={building.id} className="border border-amber-300 p-3 rounded-md">
-                <div className="flex justify-between">
-                  <span className="font-semibold">{building.name}</span>
-                  <span>{formatCurrency(building.constructionCost)}</span>
-                </div>
-                <p className="text-sm text-amber-800 my-2">{building.description}</p>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-amber-700">
-                    Maintenance: {formatCurrency(building.maintenanceCost)}/week
-                  </span>
-                  <button
-                    onClick={() => dispatch({ type: 'CONSTRUCT_BUILDING', payload: building.type })}
-                    disabled={state.treasury < building.constructionCost}
-                    className={`px-3 py-1 rounded text-sm ${
-                      state.treasury < building.constructionCost 
-                        ? 'bg-amber-300 text-amber-600 cursor-not-allowed' 
-                        : 'bg-amber-600 text-white hover:bg-amber-700'
-                    }`}
-                  >
-                    Construct
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {renderBuildingList()}
       </div>
       
-      <div className="mb-8">
-        <h2 className="text-xl font-bold text-amber-900 mb-4">Worker Assignment</h2>
-        <div className="space-y-4">
-          {state.buildings
-            .filter(building => building.isOperational && building.workerCapacity > 0)
-            .map((building) => (
-              <div key={building.id} className="border border-amber-300 p-3 rounded-md">
-                <div className="flex justify-between">
-                  <span className="font-semibold">{building.name}</span>
-                  <span>{building.assignedWorkers} / {building.workerCapacity}</span>
-                </div>
-                <div className="flex items-center space-x-2 mt-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max={building.workerCapacity}
-                    value={building.assignedWorkers}
-                    onChange={(e) => {
-                      dispatch({ 
-                        type: 'ASSIGN_WORKERS', 
-                        payload: { 
-                          buildingId: building.id, 
-                          workerCount: parseInt(e.target.value, 10) 
-                        } 
-                      });
-                    }}
-                    className="flex-grow h-2 bg-amber-300 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <span className="w-8 text-center">{building.assignedWorkers}</span>
-                </div>
-              </div>
-            ))}
-        </div>
-      </div>
+      {/* Enhanced Worker Assignment */}
+      {renderWorkerAssignments()}
       
+      {/* Enhanced Financial Summary */}
       <div>
         <h2 className="text-xl font-bold text-amber-900 mb-4">Financial Summary</h2>
-        <div className="text-sm text-amber-800">
-          <p>Weekly revenue: {formatCurrency(state.weeklyRevenue)}</p>
-          <p>Weekly expenses: {formatCurrency(state.weeklyExpenses)}</p>
-          <p>Current treasury: {formatCurrency(state.treasury)}</p>
-          <p>Mineral price: {formatCurrency(state.currentMineralPrice)}/ton</p>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <div className="mb-2">
+              <span className="text-amber-800">Weekly revenue: </span>
+              <span className="float-right font-medium text-green-600">{formatCurrency(state.weeklyRevenue)}</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Weekly expenses: </span>
+              <span className="float-right font-medium text-red-600">{formatCurrency(state.weeklyExpenses)}</span>
+            </div>
+            <div className="border-t border-amber-200 pt-1 font-medium">
+              <span className="text-amber-900">Net profit: </span>
+              <span className={`float-right ${state.weeklyRevenue - state.weeklyExpenses >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatCurrency(state.weeklyRevenue - state.weeklyExpenses)}
+              </span>
+            </div>
+          </div>
+          
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <div className="mb-2">
+              <span className="text-amber-800">Treasury: </span>
+              <span className="float-right font-medium">{formatCurrency(state.treasury)}</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Mineral price: </span>
+              <span className="float-right font-medium">{formatCurrency(state.currentMineralPrice)}/ton</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Current day: </span>
+              <span className="float-right font-medium">Week {state.currentWeek}, Day {state.currentDay}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

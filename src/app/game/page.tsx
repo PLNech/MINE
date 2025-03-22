@@ -7,6 +7,7 @@ import SalaryCeremony from '@/components/game/SalaryCeremony';
 import IntroModal from '@/components/game/IntroModal';
 import Header from '@/components/game/Header';
 import { useGameState } from '@/lib/context/GameContext';
+import ClientOnly from '@/components/ClientOnly';
 
 function GameContent() {
   const { state } = useGameState();
@@ -31,8 +32,10 @@ function GameContent() {
 
 export default function Game() {
   return (
-    <GameProvider>
-      <GameContent />
-    </GameProvider>
+    <ClientOnly>
+      <GameProvider>
+        <GameContent />
+      </GameProvider>
+    </ClientOnly>
   );
 } 

@@ -23,41 +23,35 @@ export default function IntroModal() {
             </p>
             
             <p>
-              Allow me to extend my heartfelt congratulations on your recent acquisition 
-              of the Blackrock Mining Operation. As your newly appointed secretary, it is 
-              my duty to inform you that your late uncle's bequest includes not only the 
-              mineral rights but also the full responsibility for developing what will 
-              undoubtedly become a most profitable company town.
+              Congratulations on acquiring the Blackrock Mining Operation! As your new secretary, 
+              I must inform you that your late uncle's bequest includes not just mineral rights but 
+              the responsibility of developing a profitable company town.
             </p>
             
             <p>
-              Your treasury currently stands at <span className="font-semibold">$10,000</span> – a 
-              modest but sufficient sum to begin your venture. I have taken the liberty of 
-              preparing the initial paperwork and securing the necessary permits.
+              Your treasury stands at <span className="font-semibold">$10,000</span> – a modest sum 
+              to kickstart your venture. I've prepared the initial paperwork and secured the necessary permits.
             </p>
             
             <p>
-              Your first and most crucial decision will be setting an appropriate weekly 
-              salary for your future workforce. A competitive wage will attract laborers 
-              to your operation, while judicious financial management will ensure healthy 
-              profits. Remember, a shrewd capitalist understands that workers are simply 
-              cogs in your industrial machine – well-oiled but ultimately replaceable.
+              Your first crucial decision is setting a competitive weekly salary for your workforce. 
+              A fair wage will attract laborers, while wise financial management ensures profits. 
+              Remember, a savvy capitalist knows that workers are merely cogs in the industrial machine – 
+              well-oiled yet replaceable.
             </p>
             
             <p className="italic text-amber-700">
-              "A fair day's wage for a fair day's work – with 'fair' being determined solely by the party 
+              "A fair day's wage for a fair day's work – with 'fair' defined solely by the party 
               signing the checks." – <span className="font-semibold">The Capitalist's Handbook, 1870</span>
             </p>
             
             <p>
-              It would be prudent to begin by constructing barracks to house your workers, followed by 
-              careful assignment of duties. The mine shall be the beating heart of your enterprise – all 
-              other considerations are secondary to its productive output.
+              Begin by constructing barracks for your workers, followed by careful duty assignments. 
+              The mine will be the heart of your enterprise – all else is secondary to its output.
             </p>
             
             <p>
-              I remain your faithful servant in this promising endeavor and will provide weekly reports 
-              on your operation's progress.
+              I remain your faithful servant in this endeavor and will provide weekly reports on your progress.
             </p>
             
             <p className="text-right mt-6">

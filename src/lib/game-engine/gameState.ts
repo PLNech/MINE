@@ -1,5 +1,6 @@
-import { Building, BuildingType, EffectType, FinancialRecord, GameSpeed, GameState, TownScale } from '../types/types';
+import { Building, BuildingType, EffectType, FinancialRecord, GameSpeed, GameState, TownScale, Upgrade, UpgradeType } from '../types/types';
 import { INITIAL_BUILDINGS } from '../constants/buildings';
+import { INITIAL_UPGRADES } from '../constants/upgrades';
 
 export const INITIAL_GAME_STATE: GameState = {
   // Time & Progression
@@ -44,6 +45,15 @@ export const INITIAL_GAME_STATE: GameState = {
   
   // First-time experience
   hasSeenIntro: false,
+  
+  // Upgrades
+  upgrades: INITIAL_UPGRADES,
+  
+  // Daily economic tracking
+  dailyTransactions: [],
+  todayExtraction: 0,
+  todayRevenue: 0,
+  todayExpenses: 0,
 };
 
 export const calculateTownScale = (workerCount: number): TownScale => {
@@ -55,12 +65,21 @@ export const calculateTownScale = (workerCount: number): TownScale => {
   return TownScale.CITY;
 };
 
-export const calculateMaxWorkerCapacity = (buildings: Building[]): number => {
+export const calculateMaxWorkerCapacity = (buildings: Building[], upgrades: Upgrade[]): number => {
+  // Find housing efficiency upgrade
+  const housingUpgrade = upgrades.find(u => u.type === UpgradeType.HOUSING_EFFICIENCY);
+  let housingMultiplier = 1.0; // Default multiplier
+  
+  if (housingUpgrade && housingUpgrade.currentLevel > 0) {
+    // Each level increases capacity by 20%
+    housingMultiplier = 1.0 + (housingUpgrade.currentLevel * 0.2);
+  }
+  
   return buildings.reduce((capacity, building) => {
     if (building.isOperational) {
       const housingEffect = building.effects.find(effect => effect.type === EffectType.HOUSING);
       if (housingEffect) {
-        return capacity + housingEffect.value;
+        return capacity + Math.floor(housingEffect.value * housingMultiplier);
       }
     }
     return capacity;
@@ -132,10 +151,19 @@ export const calculateWeeklyMigration = (
   return { arrivals, departures };
 };
 
-export const calculateMineralPrice = (): number => {
-  // Base price with random fluctuation within ±20% as specified in PRD
+export const calculateMineralPrice = (state: GameState): number => {
+  // Find market stability upgrade
+  const marketStabilityUpgrade = state.upgrades.find(u => u.type === UpgradeType.MARKET_STABILITY);
+  
+  // Calculate price stability modifier (reduced fluctuation)
+  let fluctuation = 0.2; // Default 20%
+  if (marketStabilityUpgrade && marketStabilityUpgrade.currentLevel > 0) {
+    // Each level reduces fluctuation by 2% (10% of the base 20%)
+    fluctuation = 0.2 - (0.02 * marketStabilityUpgrade.currentLevel);
+  }
+  
+  // Base price with random fluctuation
   const basePrice = 50;
-  const fluctuation = 0.2; // 20%
   const randomFactor = 1 + (Math.random() * fluctuation * 2 - fluctuation);
   return Math.round(basePrice * randomFactor);
 };
@@ -166,7 +194,7 @@ export const calculateWeeklyExpenses = (
 
 export const processWeeklyCeremony = (state: GameState): GameState => {
   // Calculate max worker capacity
-  const maxWorkerCapacity = calculateMaxWorkerCapacity(state.buildings);
+  const maxWorkerCapacity = calculateMaxWorkerCapacity(state.buildings, state.upgrades);
   
   // Calculate building maintenance
   const buildingMaintenance = calculateMaintenance(state.buildings);
@@ -179,7 +207,7 @@ export const processWeeklyCeremony = (state: GameState): GameState => {
   );
   
   // Calculate mineral price (fluctuates weekly)
-  const mineralPrice = calculateMineralPrice();
+  const mineralPrice = calculateMineralPrice(state);
   
   // Get mine workers (from the mine building)
   const mine = state.buildings.find(b => b.type === BuildingType.MINE);
@@ -306,66 +334,119 @@ export const processWeeklyCeremony = (state: GameState): GameState => {
 };
 
 export const updateGameState = (state: GameState): GameState => {
-  // Check if game is paused
-  if (state.isPaused || state.isGameOver || state.isCeremonyActive) {
-    return state;
-  }
+  if (state.isGameOver) return state;
   
-  // Increment day
-  let currentDay = state.currentDay + 1;
-  let currentWeek = state.currentWeek;
+  let nextDay = state.currentDay + 1;
+  let nextWeek = state.currentWeek;
   let isCeremonyActive = false;
   
-  // If a week has passed, trigger the weekly ceremony
-  if (currentDay > 7) {
-    return processWeeklyCeremony(state);
+  // Check if we've reached the end of the week (7 days)
+  if (nextDay > 7) {
+    nextDay = 1;
+    nextWeek = state.currentWeek + 1;
+    isCeremonyActive = true;
   }
   
-  // Return updated state
-  return {
-    ...state,
-    currentDay,
-    currentWeek,
-    isCeremonyActive
+  // Calculate daily extraction and revenue
+  const dailyExtraction = calculateDailyExtraction(state);
+  const updatedMineralPrice = calculateDailyMineralPrice(state);
+  const dailyRevenue = dailyExtraction * updatedMineralPrice;
+  
+  // Daily maintenance expense - 1/7th of the weekly maintenance
+  const dailyMaintenance = state.buildingMaintenance / 7;
+  
+  // Keep track of salaries only on day 7
+  const salaryCost = nextDay === 1 ? state.workerCount * state.salary : 0;
+  
+  // Calculate net change for today
+  const netChange = dailyRevenue - dailyMaintenance - (nextDay === 1 ? salaryCost : 0);
+  
+  // Create transaction record
+  const todayTransaction: DailyTransaction = {
+    day: state.currentDay,
+    week: state.currentWeek,
+    mineralExtraction: dailyExtraction,
+    revenue: dailyRevenue,
+    expenses: {
+      maintenance: dailyMaintenance,
+      ...(nextDay === 1 ? { salaries: salaryCost } : {})
+    },
+    mineralPrice: updatedMineralPrice,
+    netChange: netChange
   };
+  
+  // Update the state with the new day and transaction
+  let updatedState = {
+    ...state,
+    currentDay: nextDay,
+    currentWeek: nextWeek,
+    isCeremonyActive,
+    currentMineralPrice: updatedMineralPrice,
+    todayExtraction: dailyExtraction,
+    todayRevenue: dailyRevenue,
+    todayExpenses: dailyMaintenance + (nextDay === 1 ? salaryCost : 0),
+    treasury: state.treasury + netChange,
+    totalMineralExtraction: state.totalMineralExtraction + dailyExtraction,
+    dailyTransactions: [...state.dailyTransactions, todayTransaction].slice(-28) // Keep last 28 days (4 weeks)
+  };
+  
+  // If it's the end of the week, process the weekly ceremony
+  if (isCeremonyActive) {
+    updatedState = processWeeklyCeremony(updatedState);
+  }
+  
+  return updatedState;
 };
 
-export const constructBuilding = (
-  state: GameState,
-  buildingType: BuildingType
-): GameState => {
-  // Find the building template
-  const buildingTemplate = state.buildings.find(
-    b => b.type === buildingType && b.constructionProgress < 100
-  );
+export const constructBuilding = (state: GameState, buildingType: BuildingType): GameState => {
+  // Find the building in the available buildings
+  const buildingToBuild = state.buildings.find(b => b.type === buildingType && !b.isOperational);
   
-  if (!buildingTemplate || state.treasury < buildingTemplate.constructionCost) {
+  // If building not found or insufficient funds, return state unchanged
+  if (!buildingToBuild || state.treasury < buildingToBuild.constructionCost) {
     return state;
   }
   
-  // Update the building's construction progress to 100% and mark as operational
+  // Check if we've reached the maximum count for this building type
+  if (buildingToBuild.maxCount !== undefined) {
+    const currentCount = state.buildings.filter(b => 
+      b.type === buildingType && b.isOperational
+    ).length;
+    
+    if (currentCount >= buildingToBuild.maxCount) {
+      return state;
+    }
+  }
+  
+  // Create a new building ID for multiple instances
+  const newBuildingId = `${buildingToBuild.id}-${Date.now()}`;
+  
+  // Create a new building object
+  const newBuilding: Building = {
+    ...buildingToBuild,
+    id: newBuildingId,
+    constructionProgress: 100, // Instantly complete construction for simplicity
+    isOperational: true,
+    currentCount: (buildingToBuild.currentCount || 0) + 1
+  };
+  
+  // Update the buildings array with the new building and update the original template
   const updatedBuildings = state.buildings.map(building => {
-    if (building.id === buildingTemplate.id) {
+    if (building.id === buildingToBuild.id) {
       return {
         ...building,
-        constructionProgress: 100,
-        isOperational: true
+        currentCount: (building.currentCount || 0) + 1
       };
     }
     return building;
-  });
+  }).concat(newBuilding);
   
-  // Deduct the construction cost from the treasury
-  const treasury = state.treasury - buildingTemplate.constructionCost;
-  
-  // Recalculate max worker capacity
-  const maxWorkerCapacity = calculateMaxWorkerCapacity(updatedBuildings);
-  
+  // Update the state with the new building and reduced treasury
   return {
     ...state,
     buildings: updatedBuildings,
-    treasury,
-    maxWorkerCapacity
+    treasury: state.treasury - buildingToBuild.constructionCost,
+    buildingMaintenance: state.buildingMaintenance + newBuilding.maintenanceCost
   };
 };
 
@@ -448,5 +529,108 @@ export const acknowledgeIntro = (state: GameState): GameState => {
   return {
     ...state,
     hasSeenIntro: true
+  };
+};
+
+export const purchaseUpgrade = (state: GameState, upgradeId: string): GameState => {
+  const upgrade = state.upgrades.find(u => u.id === upgradeId);
+  
+  if (!upgrade || upgrade.currentLevel >= upgrade.maxLevel || state.treasury < calculateUpgradeCost(upgrade)) {
+    return state;
+  }
+  
+  const cost = calculateUpgradeCost(upgrade);
+  
+  // Update the upgrade's level
+  const updatedUpgrades = state.upgrades.map(u => {
+    if (u.id === upgradeId) {
+      return {
+        ...u,
+        currentLevel: u.currentLevel + 1
+      };
+    }
+    return u;
+  });
+  
+  // Apply upgrade effects
+  let updatedState = {
+    ...state,
+    upgrades: updatedUpgrades,
+    treasury: state.treasury - cost
+  };
+  
+  // Apply specific upgrade effects
+  if (upgrade.type === UpgradeType.MINE_CAPACITY) {
+    // Update mine capacity
+    updatedState = {
+      ...updatedState,
+      buildings: updatedState.buildings.map(building => {
+        if (building.type === BuildingType.MINE) {
+          return {
+            ...building,
+            workerCapacity: building.workerCapacity + upgrade.effect.valuePerLevel
+          };
+        }
+        return building;
+      })
+    };
+  }
+  
+  return updatedState;
+};
+
+export const calculateUpgradeCost = (upgrade: Upgrade): number => {
+  return Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, upgrade.currentLevel));
+};
+
+// Add daily mineral price fluctuation function
+export const calculateDailyMineralPrice = (state: GameState): number => {
+  // Find market stability upgrade
+  const marketStabilityUpgrade = state.upgrades.find(u => u.type === UpgradeType.MARKET_STABILITY);
+  
+  // Calculate price stability modifier (reduced fluctuation)
+  let fluctuation = 0.05; // Daily fluctuation is smaller than weekly (5% instead of 20%)
+  if (marketStabilityUpgrade && marketStabilityUpgrade.currentLevel > 0) {
+    // Each level reduces fluctuation
+    fluctuation = 0.05 - (0.005 * marketStabilityUpgrade.currentLevel);
+  }
+  
+  // Base price with random fluctuation
+  const basePrice = state.currentMineralPrice;
+  const randomFactor = 1 + (Math.random() * fluctuation * 2 - fluctuation);
+  return Math.round(basePrice * randomFactor);
+};
+
+// Calculate daily mineral extraction
+export const calculateDailyExtraction = (state: GameState): number => {
+  // Get mine building
+  const mine = state.buildings.find(b => b.type === BuildingType.MINE);
+  if (!mine || !mine.isOperational) return 0;
+  
+  // Calculate production
+  const workerProductivity = calculateProductivity(
+    state.workerHealth,
+    state.workerSatisfaction,
+    state.buildings
+  );
+  
+  return mine.assignedWorkers * state.baseProductionPerWorker * workerProductivity;
+};
+
+export const calculateProductionStats = (state: GameState) => {
+  // Use a stable calculation method that won't change between server and client
+  const productionData = state.financialHistory.map(record => ({
+    date: new Date(record.date),
+    value: record.production
+  }));
+
+  const industryAvgProduction = state.financialHistory.map(record => ({
+    date: new Date(record.date),
+    value: record.industryAverage || record.production * 1.1 // fallback calculation
+  }));
+
+  return {
+    productionData,
+    industryAvgProduction
   };
 }; 
