@@ -17,6 +17,8 @@ import {
   generateWorkerEfficiencyData
 } from '@/lib/utils/StatsUtils';
 import ClientOnly from '@/components/ClientOnly';
+import { getRandomAnecdotes } from '@/lib/data/MiningAnecdotes';
+import { miningAnecdotes } from '@/lib/data/MiningAnecdotes';
 
 export default function SalaryCeremony() {
   const { state, dispatch } = useGameState();
@@ -224,6 +226,17 @@ export default function SalaryCeremony() {
     setActiveTab(tab);
     resetTimer();
   };
+
+  // Select one random anecdote for each tab
+  const [weeklyAnecdotes] = useState(() => {
+    const anecdotes = {
+      overview: getRandomAnecdotes(1)[0],
+      production: getRandomAnecdotes(1)[0],
+      workforce: getRandomAnecdotes(1)[0],
+      trends: getRandomAnecdotes(1)[0],
+    };
+    return anecdotes;
+  });
 
   return (
     <ClientOnly>
@@ -450,6 +463,16 @@ export default function SalaryCeremony() {
                       )}
                     </div>
                   </div>
+                  
+                  <div className="bg-amber-100/50 p-4 rounded-md mt-6 border border-amber-200">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Mining Musings</h3>
+                    <div className="text-amber-800 italic">
+                      <p className="mb-1">{weeklyAnecdotes.overview.quote}</p>
+                      {weeklyAnecdotes.overview.attribution && (
+                        <p className="text-sm text-amber-700">{weeklyAnecdotes.overview.attribution}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
               
@@ -509,6 +532,15 @@ export default function SalaryCeremony() {
                       </div>
                     </div>
                   </div>
+                  <div className="bg-amber-100/50 p-4 rounded-md mt-6 border border-amber-200">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Mining Musings</h3>
+                    <div className="text-amber-800 italic">
+                      <p className="mb-1">{weeklyAnecdotes.production.quote}</p>
+                      {weeklyAnecdotes.production.attribution && (
+                        <p className="text-sm text-amber-700">{weeklyAnecdotes.production.attribution}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
               
@@ -537,6 +569,15 @@ export default function SalaryCeremony() {
                           }x</span>
                         </p>
                       </div>
+                    </div>
+                  </div>
+                  <div className="bg-amber-100/50 p-4 rounded-md mt-6 border border-amber-200">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Mining Musings</h3>
+                    <div className="text-amber-800 italic">
+                      <p className="mb-1">{weeklyAnecdotes.workforce.quote}</p>
+                      {weeklyAnecdotes.workforce.attribution && (
+                        <p className="text-sm text-amber-700">{weeklyAnecdotes.workforce.attribution}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -568,6 +609,15 @@ export default function SalaryCeremony() {
                           }%</span>
                         </p>
                       </div>
+                    </div>
+                  </div>
+                  <div className="bg-amber-100/50 p-4 rounded-md mt-6 border border-amber-200">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">Weekly Mining Musings</h3>
+                    <div className="text-amber-800 italic">
+                      <p className="mb-1">{weeklyAnecdotes.trends.quote}</p>
+                      {weeklyAnecdotes.trends.attribution && (
+                        <p className="text-sm text-amber-700">{weeklyAnecdotes.trends.attribution}</p>
+                      )}
                     </div>
                   </div>
                 </div>

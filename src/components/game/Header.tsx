@@ -3,13 +3,26 @@
 import { useGameState } from '@/lib/context/GameContext';
 import { GameSpeed } from '@/lib/types/types';
 import { useState, useEffect } from 'react';
+import { getRandomAnecdotes } from '@/lib/data/MiningAnecdotes';
 
 export default function Header() {
   const { state, dispatch } = useGameState();
   const [isClient, setIsClient] = useState(false);
+  const [currentAnecdote, setCurrentAnecdote] = useState<string>('');
   
   useEffect(() => {
     setIsClient(true);
+    // Get a random anecdote when the component mounts
+    const anecdote = getRandomAnecdotes(1)[0];
+    setCurrentAnecdote(anecdote.quote);
+    
+    // Set up an interval to change the anecdote every 10 seconds
+    const interval = setInterval(() => {
+      const newAnecdote = getRandomAnecdotes(1)[0];
+      setCurrentAnecdote(newAnecdote.quote);
+    }, 10000); // Change every 10 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
   }, []);
   
   const formatCurrency = (amount: number) => {
@@ -85,6 +98,13 @@ export default function Header() {
           </button>
         </div>
       </div>
+
+      {/* Rolling News Header */}
+      <div className="bg-amber-800 text-amber-50 p-2 text-center">
+        <marquee behavior="scroll" direction="left" className="whitespace-nowrap">
+          {currentAnecdote}
+        </marquee>
+      </div>
     </header>
   );
-} 
+}   
