@@ -20,10 +20,7 @@ export default function GameControls() {
   const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSalary = parseInt(e.target.value, 10);
     setSalary(newSalary);
-  };
-  
-  const handleSalarySubmit = () => {
-    dispatch({ type: 'SET_SALARY', payload: salary });
+    dispatch({ type: 'SET_SALARY', payload: newSalary });
   };
   
   const formatCurrency = (amount: number) => {
@@ -404,7 +401,9 @@ export default function GameControls() {
     <div className="bg-amber-100 p-6 rounded-lg shadow-md">
       {/* Enhanced Salary Control */}
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-amber-900 mb-4">Weekly Salary</h2>
+        <h2 className="text-xl text-amber-900 mb-4">
+          Weekly Salary: <span className="font-bold">{formatCurrency(salary)}</span>
+        </h2>
         <div className="mb-4 relative">
           <div className="flex justify-between text-sm text-amber-800 mb-1">
             <span>$10</span>
@@ -440,21 +439,13 @@ export default function GameControls() {
         
         <div className="flex justify-between mb-4">
           <div>
-            <span className="text-lg font-semibold">{formatCurrency(salary)}</span>
             {salary !== state.salary && (
               <span className="text-xs text-amber-600 ml-2">
                 (Current: {formatCurrency(state.salary)})
               </span>
             )}
           </div>
-          <button
-            onClick={handleSalarySubmit}
-            className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 transition-colors"
-          >
-            Set Salary
-          </button>
         </div>
-        
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="bg-amber-50/80 p-3 rounded-md">
             <p className="mb-1">

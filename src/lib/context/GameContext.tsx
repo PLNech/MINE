@@ -48,15 +48,28 @@ function gameReducer(state: GameState, action: GameAction): GameState {
   }
 }
 
+function mergeWithInitialState(savedState: Partial<GameState>): GameState {
+  // Deep merge the saved state with initial state
+  return {
+    ...INITIAL_GAME_STATE,
+    ...savedState,
+    // Ensure complex objects are also merged properly
+    buildings: savedState.buildings?.map(building => ({
+      ...INITIAL_GAME_STATE.buildings.find(b => b.id === building.id) || {},
+      ...building,
+    })) || INITIAL_GAME_STATE.buildings,
+  };
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
-  // Try to load saved game state from localStorage
   const loadSavedState = (): GameState => {
     if (typeof window === 'undefined') return INITIAL_GAME_STATE;
     
     try {
       const savedState = localStorage.getItem('gameState');
       if (savedState) {
-        return JSON.parse(savedState);
+        // Merge saved state with initial state
+        return mergeWithInitialState(JSON.parse(savedState));
       }
     } catch (error) {
       console.error('Failed to load saved game state:', error);
