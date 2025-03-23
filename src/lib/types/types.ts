@@ -108,6 +108,20 @@ export interface DailyTransaction {
   netChange: number;
 }
 
+export interface SavedGameState {
+  version: string;
+  timestamp: number;
+  state: GameState;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  unlocked: boolean;
+  unlockedAt?: Date;
+}
+
 export interface GameState {
   // Time & Progression
   currentWeek: number;
@@ -162,6 +176,9 @@ export interface GameState {
   todayExtraction: number;
   todayRevenue: number;
   todayExpenses: number;
+  
+  // Achievements
+  achievements: Achievement[];
 }
 
 export interface ChartDataPoint {

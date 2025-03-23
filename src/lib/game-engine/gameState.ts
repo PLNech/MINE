@@ -1,4 +1,4 @@
-import { Building, BuildingType, EffectType, FinancialRecord, GameSpeed, GameState, TownScale, Upgrade, UpgradeType } from '../types/types';
+import { Building, BuildingType, EffectType, FinancialRecord, GameSpeed, GameState, TownScale, Upgrade, UpgradeType, SavedGameState } from '../types/types';
 import { INITIAL_BUILDINGS } from '../constants/buildings';
 import { INITIAL_UPGRADES } from '../constants/upgrades';
 
@@ -54,6 +54,24 @@ export const INITIAL_GAME_STATE: GameState = {
   todayExtraction: 0,
   todayRevenue: 0,
   todayExpenses: 0,
+  
+  // Achievements
+  achievements: [
+    // Example achievements
+    {
+      id: 'first_mine',
+      name: 'First Mine',
+      description: 'Construct your first mine',
+      unlocked: false
+    },
+    {
+      id: 'town_growth',
+      name: 'Growing Town',
+      description: 'Reach 50 workers',
+      unlocked: false
+    }
+    // Add more achievements as needed
+  ]
 };
 
 export const calculateTownScale = (workerCount: number): TownScale => {
@@ -636,5 +654,57 @@ export const calculateProductionStats = (state: GameState) => {
   return {
     productionData,
     industryAvgProduction
+  };
+};
+
+// Add new functions for save management
+export const exportGameState = (state: GameState): SavedGameState => {
+  return {
+    version: '1.0.0',
+    timestamp: Date.now(),
+    state: {
+      ...state,
+      // Optionally strip out any runtime-specific or sensitive data
+      isCeremonyActive: false,
+      isPaused: true,
+      gameSpeed: GameSpeed.PAUSED
+    }
+  };
+};
+
+export const importGameState = (savedState: SavedGameState): GameState => {
+  // Validate version, merge with initial state
+  return {
+    ...INITIAL_GAME_STATE,
+    ...savedState.state,
+    // Ensure critical game state is reset
+    isCeremonyActive: false,
+    isPaused: true,
+    gameSpeed: GameSpeed.PAUSED
+  };
+};
+
+// Add to existing GameContext actions
+type GameAction = 
+  // ... existing actions
+  | { type: 'EXPORT_SAVE' }
+  | { type: 'IMPORT_SAVE'; payload: SavedGameState }
+  | { type: 'RESET_GAME' };
+
+// Add corresponding reducer logic
+export const exportSave = (state: GameState): SavedGameState => {
+  return exportGameState(state);
+};
+
+export const importSave = (state: GameState, savedState: SavedGameState): GameState => {
+  return importGameState(savedState);
+};
+
+export const resetGame = (state: GameState): GameState => {
+  // Reset game but keep achievements
+  return {
+    ...INITIAL_GAME_STATE,
+    achievements: state.achievements,
+    hasSeenIntro: false
   };
 }; 

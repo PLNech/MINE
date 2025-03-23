@@ -4,11 +4,13 @@ import { useGameState } from '@/lib/context/GameContext';
 import { GameSpeed } from '@/lib/types/types';
 import { useState, useEffect } from 'react';
 import { getRandomAnecdotes } from '@/lib/data/MiningAnecdotes';
+import SettingsModal from './SettingsModal';
 
 export default function Header() {
   const { state, dispatch } = useGameState();
   const [isClient, setIsClient] = useState(false);
   const [currentAnecdote, setCurrentAnecdote] = useState<string>('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   useEffect(() => {
     setIsClient(true);
@@ -105,6 +107,20 @@ export default function Header() {
           {currentAnecdote}
         </marquee>
       </div>
+
+      {/* Add settings button */}
+      <button 
+        onClick={() => setIsSettingsOpen(true)}
+        className="absolute top-4 right-4 bg-amber-800 p-2 rounded-full hover:bg-amber-700"
+      >
+        ⚙️ {/* Settings wheel emoji */}
+      </button>
+      
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
     </header>
   );
 }   

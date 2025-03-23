@@ -86,7 +86,7 @@ export default function SalaryCeremony() {
   };
 
   const formatWeeklyDate = (date: Date, weekNum: number) => {
-    return `Week ${weekNum}, ${date.getFullYear()}`;
+    return `Week ${weekNum}`;
   };
 
   const formatMonthlyDate = (date: Date) => {
@@ -113,11 +113,13 @@ export default function SalaryCeremony() {
     const revenueData = currentWeekTransactions.length > 0 
       ? currentWeekTransactions.map(tx => ({
           date: getDateFromWeekAndDay(tx.week, tx.day),
-          value: tx.revenue
+          value: tx.revenue,
+          label: formatDailyDate(getDateFromWeekAndDay(tx.week, tx.day))
         }))
       : Array(7).fill(0).map((_, i) => ({
           date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
-          value: 0
+          value: state.todayRevenue,
+          label: formatDailyDate(getDateFromWeekAndDay(state.currentWeek - 1, i + 1))
         }));
     
     const expenseData = currentWeekTransactions.length > 0
@@ -197,13 +199,15 @@ export default function SalaryCeremony() {
     // Production data with fallback
     const productionData = currentWeekTransactions.length > 0
       ? currentWeekTransactions.map(tx => ({
-      date: getDateFromWeekAndDay(tx.week, tx.day),
-      value: tx.mineralExtraction
-        }))
+        date: getDateFromWeekAndDay(tx.week, tx.day),
+        value: tx.mineralExtraction,
+        label: formatDailyDate(getDateFromWeekAndDay(tx.week, tx.day))
+      }))
       : Array(7).fill(0).map((_, i) => ({
-          date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
-          value: 0
-        }));
+        date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
+        value: state.todayExtraction,
+        label: formatDailyDate(getDateFromWeekAndDay(state.currentWeek - 1, i + 1))
+      }));
     
     // Generate historical data for time period tabs
     // Last week (already have), month (4 weeks), year (52 weeks)
@@ -224,7 +228,7 @@ export default function SalaryCeremony() {
             date: getDateFromWeekAndDay(weekNumber),
             weekNumber,
             value: metricFn(record),
-            label: formatWeeklyDate(getDateFromWeekAndDay(weekNumber), weekNumber)
+            label: `Week ${weekNumber}`
           });
         }
       }
@@ -287,7 +291,7 @@ export default function SalaryCeremony() {
         year: productivityYear
       }
     };
-  }, [state.financialHistory, currentWeekTransactions, state.workerSatisfaction, state.workerHealth, state.buildings, state.currentWeek]);
+  }, [state.financialHistory, currentWeekTransactions, state.workerSatisfaction, state.workerHealth, state.buildings, state.currentWeek, state.todayRevenue, state.todayExtraction]);
   
   // Add new state for time period tabs
   const [productivityTimePeriod, setProductivityTimePeriod] = useState<'week' | 'month' | 'year'>('week');

@@ -105,7 +105,6 @@ Focus on the JavaScript/TypeScript logic rather than UI design
 Ensure all formulas match the specifications in the PRD
 Update the save/load system to handle the expanded state
 Add proper type definitions for all new state elements
-Implement unit tests for core economic calculations
 
 This step should establish the foundational game mechanics that will drive the simulation, focusing on functionality rather than presentation.
 
