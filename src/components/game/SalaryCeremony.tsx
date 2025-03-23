@@ -19,11 +19,12 @@ import {
 import ClientOnly from '@/components/ClientOnly';
 import { getRandomAnecdotes } from '@/lib/data/MiningAnecdotes';
 import { miningAnecdotes } from '@/lib/data/MiningAnecdotes';
+import { StackedChartDataPoint } from '../charts/ChartTypes';
 
 export default function SalaryCeremony() {
   const { state, dispatch } = useGameState();
   const [activeTab, setActiveTab] = useState<'overview' | 'production' | 'workforce' | 'trends'>('overview');
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(30);
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -66,18 +67,101 @@ export default function SalaryCeremony() {
   const weeklyProfit = weeklyRevenue - weeklyExpenses;
   const profitMargin = calculateProfitMargin(weeklyRevenue, weeklyExpenses);
   
+    // Helper function to convert week and day to proper date
+  const getDateFromWeekAndDay = (week: number, day: number = 1) => {
+    // Start from game epoch (e.g., Jan 1, 1920)
+    const baseDate = new Date(1920, 0, 1);
+    const daysToAdd = (week - 1) * 7 + (day - 1);
+    return new Date(baseDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+  };
+
+  // Date formatting helpers
+  const formatDailyDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const formatWeeklyDate = (date: Date, weekNum: number) => {
+    return `Week ${weekNum}, ${date.getFullYear()}`;
+  };
+
+  const formatMonthlyDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
   // Memoize chart data to avoid recalculations
   const chartData = useMemo(() => {
     // Financial history charts
-    const profitHistory = financialHistoryToChartData(state.financialHistory);
-    const treasuryHistory = treasuryHistoryToChartData(state.financialHistory);
+    const profitHistory = state.financialHistory.map(record => ({
+      date: getDateFromWeekAndDay(record.week),
+      value: record.profit
+    }));
+
+    const treasuryHistory = state.financialHistory.map(record => ({
+      date: getDateFromWeekAndDay(record.week),
+      value: record.treasury
+    }));
     
-    // Daily transaction charts
-    const revenueData = dailyTransactionsToRevenueData(currentWeekTransactions);
-    const expenseData = dailyTransactionsToExpenseData(currentWeekTransactions);
-    const stackedExpenseData = dailyTransactionsToStackedExpenseData(currentWeekTransactions);
+    // Daily transaction charts - ensure we have valid data
+    const revenueData = currentWeekTransactions.length > 0 
+      ? currentWeekTransactions.map(tx => ({
+          date: getDateFromWeekAndDay(tx.week, tx.day),
+          value: tx.revenue
+        }))
+      : Array(7).fill(0).map((_, i) => ({
+          date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
+          value: 0
+        }));
     
-    // Expense breakdown for pie chart
+    const expenseData = currentWeekTransactions.length > 0
+      ? currentWeekTransactions.map(tx => {
+          const totalExpenses = tx.expenses.maintenance + 
+            (tx.expenses.salaries || 0) + 
+            (tx.expenses.upgrades || 0) + 
+            (tx.expenses.construction || 0);
+          return {
+            date: getDateFromWeekAndDay(tx.week, tx.day),
+            value: totalExpenses
+          };
+        })
+      : Array(7).fill(0).map((_, i) => ({
+          date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
+          value: 0
+        }));
+    
+    // Stacked expense data with fallback
+    const stackedExpenseData: StackedChartDataPoint[] = currentWeekTransactions.length > 0
+      ? currentWeekTransactions.map(tx => ({
+          date: getDateFromWeekAndDay(tx.week, tx.day),
+          value: tx.expenses.maintenance + 
+                 (tx.expenses.salaries || 0) + 
+                 (tx.expenses.upgrades || 0) + 
+                 (tx.expenses.construction || 0),
+          categories: {
+            Maintenance: tx.expenses.maintenance,
+            Salaries: tx.expenses.salaries || 0,
+            Upgrades: tx.expenses.upgrades || 0,
+            Construction: tx.expenses.construction || 0,
+          }
+        }))
+      : Array(7).fill(0).map((_, i) => ({
+          date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
+          value: 0,
+          categories: {
+            Maintenance: 0,
+            Salaries: 0,
+            Upgrades: 0,
+            Construction: 0,
+          }
+        }));
+    // Expense breakdown for pie chart - ensure we have data
     const expenseBreakdown = [
       { 
         label: 'Maintenance', 
@@ -101,37 +185,80 @@ export default function SalaryCeremony() {
       }
     ].filter(item => item.value > 0); // Remove zero items
     
-    // Production data
-    const productionData = currentWeekTransactions.map(tx => ({
-      date: new Date(tx.week * 7 + tx.day - 1),
+    // If all expenses are zero, add a placeholder
+    if (expenseBreakdown.length === 0) {
+      expenseBreakdown.push({
+        label: 'No Expenses', 
+        value: 1,
+        color: '#d1d5db'
+      });
+    }
+    
+    // Production data with fallback
+    const productionData = currentWeekTransactions.length > 0
+      ? currentWeekTransactions.map(tx => ({
+      date: getDateFromWeekAndDay(tx.week, tx.day),
       value: tx.mineralExtraction
-    }));
+        }))
+      : Array(7).fill(0).map((_, i) => ({
+          date: getDateFromWeekAndDay(state.currentWeek - 1, i + 1),
+          value: 0
+        }));
     
-    // Worker efficiency data
-    const mockSatisfaction = Array.from({ length: 8 }, (_, i) => 
-      Math.min(100, Math.max(40, state.workerSatisfaction - 5 + i * 2 + Math.random() * 5))
+    // Generate historical data for time period tabs
+    // Last week (already have), month (4 weeks), year (52 weeks)
+    // For week/month/year satisfaction and efficiency tabs
+    const generateTimeSeriesData = (weeks: number, metricFn: (record: any) => number): TimeSeriesDataPoint[] => {
+      const result: TimeSeriesDataPoint[] = [];
+      const currentWeek = state.currentWeek;
+      
+      for (let i = 0; i < weeks; i++) {
+        const weekNumber = currentWeek - i - 1;
+        if (weekNumber <= 0) break;
+        
+        // Find financial record for this week
+        const record = state.financialHistory.find(r => r.week === weekNumber);
+        
+        if (record) {
+          result.push({
+            date: getDateFromWeekAndDay(weekNumber),
+            weekNumber,
+            value: metricFn(record),
+            label: formatWeeklyDate(getDateFromWeekAndDay(weekNumber), weekNumber)
+          });
+        }
+      }
+      
+      // Reverse to get chronological order
+      return result.reverse();
+    };
+    
+    // Generate worker satisfaction data for different time periods
+    const satisfactionWeek = generateTimeSeriesData(1, r => r.workerSatisfaction);
+    const satisfactionMonth = generateTimeSeriesData(4, r => r.workerSatisfaction);
+    const satisfactionYear = generateTimeSeriesData(52, r => r.workerSatisfaction);
+    
+    // Generate productivity/efficiency data for different time periods
+    const productivityWeek = generateTimeSeriesData(1, r => 
+      (0.5 + (r.workerSatisfaction * 0.25) / 100 + (r.workerHealth * 0.25) / 100)
     );
-    const mockHealth = Array.from({ length: 8 }, (_, i) => 
-      Math.min(100, Math.max(40, state.workerHealth - 3 + i * 1 + Math.random() * 5))
+    const productivityMonth = generateTimeSeriesData(4, r => 
+      (0.5 + (r.workerSatisfaction * 0.25) / 100 + (r.workerHealth * 0.25) / 100)
     );
-    const mockProductivity = mockSatisfaction.map((s, i) => 
-      (0.5 + (s * 0.25) / 100 + (mockHealth[i] * 0.25) / 100)
+    const productivityYear = generateTimeSeriesData(52, r => 
+      (0.5 + (r.workerSatisfaction * 0.25) / 100 + (r.workerHealth * 0.25) / 100)
     );
     
-    const efficiencyData = generateWorkerEfficiencyData(
-      mockSatisfaction, mockHealth, mockProductivity
-    );
-    
-    // Fictional industry average
+    // Industry average production with proper dates
     const industryAvgProduction = productionData.map(d => ({
-      ...d,
-      value: d.value * 0.8 + Math.random() * 10 // 80% of player's production + noise
+      date: d.date, // Use the same dates as production data
+      value: Math.max(10, d.value * 0.8 + Math.random() * 10)
     }));
     
     // Calculate production capacity utilization
     const mine = state.buildings.find(b => b.type === 'Mine');
     const maxCapacity = mine ? mine.workerCapacity : 0;
-    const utilizationPercentage = mine ? (mine.assignedWorkers / maxCapacity) * 100 : 0;
+    const utilizationPercentage = mine && maxCapacity > 0 ? (mine.assignedWorkers / maxCapacity) * 100 : 0;
     
     const capacityUtilization = [
       { label: 'Utilized', value: utilizationPercentage, color: '#65a30d' },
@@ -149,34 +276,46 @@ export default function SalaryCeremony() {
       productionData,
       industryAvgProduction,
       capacityUtilization,
-      workerEfficiency: efficiencyData
+      satisfactionData: {
+        week: satisfactionWeek,
+        month: satisfactionMonth,
+        year: satisfactionYear
+      },
+      productivityData: {
+        week: productivityWeek,
+        month: productivityMonth,
+        year: productivityYear
+      }
     };
-  }, [state.financialHistory, currentWeekTransactions, state.workerSatisfaction, state.workerHealth, state.buildings]);
+  }, [state.financialHistory, currentWeekTransactions, state.workerSatisfaction, state.workerHealth, state.buildings, state.currentWeek]);
   
-  // Helper function for percentage changes
+  // Add new state for time period tabs
+  const [productivityTimePeriod, setProductivityTimePeriod] = useState<'week' | 'month' | 'year'>('week');
+  const [satisfactionTimePeriod, setSatisfactionTimePeriod] = useState<'week' | 'month' | 'year'>('week');
+  
+  // Improve the getPercentChange helper to handle more edge cases
   const getPercentChange = (current: number, previous: number | undefined): string => {
-    if (previous === undefined || previous === 0) return "+0%";
+    if (previous === undefined || previous === 0) {
+      if (current === 0) return "0%";
+      return "+∞%"; // Infinity symbol for division by zero
+    }
     
     const percentChange = ((current - previous) / Math.abs(previous) * 100);
+    if (isNaN(percentChange)) return "N/A";
+    
     return (percentChange > 0 ? "+" : "") + percentChange.toFixed(1) + "%"; 
   };
   
-  // Helper to determine change style
-  const getChangeStyle = (current: number, previous: number | undefined, inverseColors = false): string => {
-    if (previous === undefined) return "text-amber-700";
-    
-    const isPositive = current > previous;
-    // For costs, higher is worse, so invert the color logic if inverseColors is true
-    const positiveIsGood = !inverseColors;
-    
-    if (current === previous) return "text-amber-700";
-    return (isPositive === positiveIsGood) ? "text-green-600" : "text-red-600";
+  // Helper to format percentages with 2 decimal places
+  const formatPercent = (value: number): string => {
+    if (isNaN(value)) return "0.00%";
+    return value.toFixed(2) + "%";
   };
   
   // Reset timer function
   const resetTimer = () => {
-    console.log('Timer reset to 10s');
-    setTimeLeft(10);
+    console.log('Timer reset to 30s');
+    setTimeLeft(30);
   };
 
   // Handle close
@@ -226,6 +365,26 @@ export default function SalaryCeremony() {
     setActiveTab(tab);
     resetTimer();
   };
+
+
+  // Helper to determine change style with better handling of edge cases
+  const getChangeStyle = (current: number, previous: number | undefined, inverseColors = false): string => {
+    if (previous === undefined || isNaN(current) || isNaN(previous)) return "text-amber-700";
+    
+    if (current === previous) return "text-amber-700";
+    
+    const isPositive = current > previous;
+    // For costs, higher is worse, so invert the color logic if inverseColors is true
+    const positiveIsGood = !inverseColors;
+    
+    // Return appropriate color class
+    if (isPositive === positiveIsGood) {
+      return current === 0 ? "text-amber-700" : "text-green-600";
+    } else {
+      return current === 0 ? "text-amber-700" : "text-red-600";
+    }
+  };
+
 
   // Select one random anecdote for each tab
   const [weeklyAnecdotes] = useState(() => {
@@ -379,6 +538,7 @@ export default function SalaryCeremony() {
                           width={400}
                           height={200}
                           tooltipFormatter={formatCurrency}
+                          xAxisFormatter={formatDailyDate}
                         />
                       </div>
                       
@@ -389,6 +549,7 @@ export default function SalaryCeremony() {
                           width={400}
                           height={200}
                           tooltipFormatter={(v) => `${v.toFixed(1)} tons`}
+                          xAxisFormatter={formatDailyDate}
                         />
                       </div>
                     </div>
@@ -398,18 +559,20 @@ export default function SalaryCeremony() {
                     <div className="bg-amber-100 p-3 rounded-md">
                       <div className="text-sm text-amber-800">Mineral Production</div>
                       <div className="text-xl font-bold text-amber-900">
-                        {currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0).toFixed(0)} tons
+                        {latestRecord 
+                          ? `${latestRecord.mineralExtraction.toFixed(0)} tons`
+                          : "No data"}
                       </div>
                       
-                      {previousWeekTransactions.length > 0 && (
+                      {previousRecord && (
                         <div className="text-xs mt-1">
                           <span className={getChangeStyle(
-                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
-                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
+                            latestRecord?.mineralExtraction || 0,
+                            previousRecord.mineralExtraction
                           )}>
                             {getPercentChange(
-                              currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0),
-                              previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralExtraction, 0)
+                              latestRecord?.mineralExtraction || 0,
+                              previousRecord.mineralExtraction
                             )}
                           </span>
                         </div>
@@ -419,21 +582,18 @@ export default function SalaryCeremony() {
                     <div className="bg-amber-100 p-3 rounded-md">
                       <div className="text-sm text-amber-800">Average Mineral Price</div>
                       <div className="text-xl font-bold text-amber-900">
-                        {formatCurrency(
-                          currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / 
-                          Math.max(1, currentWeekTransactions.length)
-                        )}/ton
+                        {formatCurrency(state.currentMineralPrice)}/ton
                       </div>
                       
-                      {previousWeekTransactions.length > 0 && (
+                      {previousRecord && (
                         <div className="text-xs mt-1">
                           <span className={getChangeStyle(
-                            currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
-                            previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
+                            state.currentMineralPrice,
+                            previousRecord.mineralPrice || 0
                           )}>
                             {getPercentChange(
-                              currentWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / currentWeekTransactions.length,
-                              previousWeekTransactions.reduce((sum, tx) => sum + tx.mineralPrice, 0) / previousWeekTransactions.length
+                              state.currentMineralPrice,
+                              previousRecord.mineralPrice || 0
                             )}
                           </span>
                         </div>
@@ -443,20 +603,24 @@ export default function SalaryCeremony() {
                     <div className="bg-amber-100 p-3 rounded-md">
                       <div className="text-sm text-amber-800">Profit per Worker</div>
                       <div className="text-xl font-bold text-amber-900">
-                        {state.workerCount > 0 
-                          ? formatCurrency(weeklyProfit / state.workerCount) 
-                          : formatCurrency(0)}
+                        {state.workerCount > 0 && weeklyProfit !== 0
+                          ? formatCurrency(weeklyProfit / state.workerCount)
+                          : formatCurrency(state.weeklyRevenue / Math.max(1, state.workerCount))}
                       </div>
                       
-                      {previousRecord && previousRecord.workerCount > 0 && (
+                      {previousRecord && (
                         <div className="text-xs mt-1">
                           <span className={getChangeStyle(
-                            weeklyProfit / state.workerCount,
-                            previousRecord.profit / previousRecord.workerCount
+                            weeklyProfit / Math.max(1, state.workerCount),
+                            previousRecord.workerCount > 0 
+                              ? previousRecord.profit / previousRecord.workerCount 
+                              : 0
                           )}>
                             {getPercentChange(
-                              weeklyProfit / state.workerCount,
-                              previousRecord.profit / previousRecord.workerCount
+                              weeklyProfit / Math.max(1, state.workerCount),
+                              previousRecord.workerCount > 0 
+                                ? previousRecord.profit / previousRecord.workerCount 
+                                : 0
                             )}
                           </span>
                         </div>
@@ -482,14 +646,49 @@ export default function SalaryCeremony() {
                   <div className="grid grid-cols-2 gap-6 mb-6">
                     <div className="bg-amber-100 p-4 rounded-md">
                       <h3 className="text-lg font-bold text-amber-900 mb-3">Production Efficiency</h3>
+                      
+                      {/* Add time period tabs */}
+                      <div className="flex border-b border-amber-200 mb-4">
+                        <button 
+                          className={`px-3 py-1 text-sm ${productivityTimePeriod === 'week' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setProductivityTimePeriod('week');
+                            resetTimer();
+                          }}
+                        >
+                          Last Week
+                        </button>
+                        <button 
+                          className={`px-3 py-1 text-sm ${productivityTimePeriod === 'month' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setProductivityTimePeriod('month');
+                            resetTimer();
+                          }}
+                        >
+                          Last Month
+                        </button>
+                        <button 
+                          className={`px-3 py-1 text-sm ${productivityTimePeriod === 'year' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setProductivityTimePeriod('year');
+                            resetTimer();
+                          }}
+                        >
+                          Last Year
+                        </button>
+                      </div>
+                      
                       <div className="mb-4">
                         <LineChart 
-                          data={chartData.workerEfficiency.productivityData}
+                          data={chartData.productivityData[productivityTimePeriod]}
                           width={400}
                           height={200}
                           title="Worker Productivity"
                           yLabel="Efficiency"
                           tooltipFormatter={(v) => `${v.toFixed(2)}x`}
+                          xAxisFormatter={productivityTimePeriod === 'year' 
+                            ? formatMonthlyDate 
+                            : (date: Date) => formatWeeklyDate(date, Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000)) + 1)}
                         />
                       </div>
                       
@@ -524,7 +723,9 @@ export default function SalaryCeremony() {
                       <div className="text-sm p-3 bg-amber-50 rounded-md">
                         <p className="text-amber-800 mb-2">
                           <strong>Competitive Analysis:</strong> Your production is currently {
-                            chartData.productionData.reduce((sum, d) => sum + d.value, 0).toFixed(1)
+                            currentWeekTransactions.length > 0 
+                              ? chartData.productionData.reduce((sum, d) => sum + d.value, 0).toFixed(1)
+                              : "0.0"
                           } tons, compared to the industry average of {
                             chartData.industryAvgProduction.reduce((sum, d) => sum + d.value, 0).toFixed(1)
                           } tons.
@@ -550,9 +751,41 @@ export default function SalaryCeremony() {
                   <div className="grid grid-cols-2 gap-6 mb-6">
                     <div className="bg-amber-100 p-4 rounded-md">
                       <h3 className="text-lg font-bold text-amber-900 mb-3">Worker Satisfaction</h3>
+                      
+                      {/* Add time period tabs */}
+                      <div className="flex border-b border-amber-200 mb-4">
+                        <button 
+                          className={`px-3 py-1 text-sm ${satisfactionTimePeriod === 'week' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setSatisfactionTimePeriod('week');
+                            resetTimer();
+                          }}
+                        >
+                          Last Week
+                        </button>
+                        <button 
+                          className={`px-3 py-1 text-sm ${satisfactionTimePeriod === 'month' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setSatisfactionTimePeriod('month');
+                            resetTimer();
+                          }}
+                        >
+                          Last Month
+                        </button>
+                        <button 
+                          className={`px-3 py-1 text-sm ${satisfactionTimePeriod === 'year' ? 'bg-amber-50 border-b-2 border-amber-600' : ''}`}
+                          onClick={() => {
+                            setSatisfactionTimePeriod('year');
+                            resetTimer();
+                          }}
+                        >
+                          Last Year
+                        </button>
+                      </div>
+                      
                       <div className="mb-4">
                         <LineChart 
-                          data={chartData.workerEfficiency.satisfactionData}
+                          data={chartData.satisfactionData[satisfactionTimePeriod]}
                           width={400}
                           height={200}
                           title="Worker Satisfaction"
@@ -605,8 +838,10 @@ export default function SalaryCeremony() {
                         </p>
                         <p className="text-amber-800">
                           Current profit margin: <span className="font-medium">{
-                            (latestRecord?.profit || 0) / (latestRecord?.revenue || 1)
-                          }%</span>
+                            latestRecord && latestRecord.revenue > 0 
+                              ? formatPercent((latestRecord.profit / latestRecord.revenue) * 100)
+                              : "0.00%"
+                          }</span>
                         </p>
                       </div>
                     </div>

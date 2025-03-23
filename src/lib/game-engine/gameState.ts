@@ -298,7 +298,7 @@ export const processWeeklyCeremony = (state: GameState): GameState => {
   const townScale = calculateTownScale(newWorkerCount);
   
   // Create financial record
-  const financialRecord: FinancialRecord = {
+  const newFinancialRecord: FinancialRecord = {
     week: state.currentWeek,
     revenue: weeklyRevenue,
     expenses: weeklyExpenses,
@@ -308,7 +308,11 @@ export const processWeeklyCeremony = (state: GameState): GameState => {
     workerSatisfaction: newSatisfaction,
     workerHealth: newHealth,
     mineralPrice,
-    production
+    mineralExtraction: state.totalMineralExtraction,
+    production,
+    efficiency: state.baseProductionPerWorker * 
+      (0.5 + (newSatisfaction * 0.25) / 100 + (newHealth * 0.25) / 100),
+    avgDailyProduction: state.todayExtraction / state.currentDay
   };
   
   // Update game state
@@ -327,7 +331,7 @@ export const processWeeklyCeremony = (state: GameState): GameState => {
     workerHealth: newHealth,
     weeklyMigration: migration,
     buildingMaintenance,
-    financialHistory: [...state.financialHistory, financialRecord].slice(-10), // Keep last 10 weeks
+    financialHistory: [...state.financialHistory, newFinancialRecord].slice(-10), // Keep last 10 weeks
     townScale,
     isCeremonyActive: true, // Activate the ceremony modal
   };

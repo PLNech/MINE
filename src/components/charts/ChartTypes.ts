@@ -4,19 +4,21 @@ export interface ChartDataPoint {
   label?: string;
 }
 
-export interface StackedChartDataPoint extends ChartDataPoint {
+export interface StackedChartDataPoint {
+  date: Date;
+  value: number;
   categories: {
     [key: string]: number;
   };
 }
 
 export interface ChartProps {
-  data: ChartDataPoint[] | StackedChartDataPoint[];
-  width?: number;
-  height?: number;
+  data: ChartDataPoint[];
+  width: number;
+  height: number;
   title?: string;
-  xLabel?: string;
   yLabel?: string;
   showLegend?: boolean;
   tooltipFormatter?: (value: number) => string;
+  xAxisFormatter?: (date: Date) => string;
 }

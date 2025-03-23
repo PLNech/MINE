@@ -66,7 +66,10 @@ export interface FinancialRecord {
   workerSatisfaction: number;
   workerHealth: number;
   mineralPrice: number;
+  mineralExtraction: number;
   production: number;
+  efficiency: number;
+  avgDailyProduction: number;
 }
 
 export enum UpgradeType {
@@ -159,4 +162,14 @@ export interface GameState {
   todayExtraction: number;
   todayRevenue: number;
   todayExpenses: number;
+}
+
+export interface ChartDataPoint {
+  date: Date;
+  value: number;
+  label?: string;
+}
+
+export interface TimeSeriesDataPoint extends ChartDataPoint {
+  weekNumber?: number;
 } 

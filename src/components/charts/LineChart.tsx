@@ -13,6 +13,7 @@ interface LineChartProps {
   yLabel?: string;
   showLegend?: boolean;
   tooltipFormatter?: (value: number) => string;
+  xAxisFormatter?: (date: Date) => string; // added this prop
 }
 
 export default function LineChart({
@@ -23,7 +24,8 @@ export default function LineChart({
   xLabel,
   yLabel,
   showLegend = true,
-  tooltipFormatter = (v: number) => v.toString()
+  tooltipFormatter = (v: number) => v.toString(),
+  xAxisFormatter // added this line
 }: LineChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   
@@ -155,7 +157,7 @@ export default function LineChart({
 
     const xAxis = d3.axisBottom(xScale)
       .ticks(5)
-      .tickFormat((d) => formatDate(d as Date));
+      .tickFormat((d) => xAxisFormatter ? xAxisFormatter(d as Date) : formatDate(d as Date)); // use the formatter
     
     // Render the axis into the group
     d3.select(xAxisGroup).call(xAxis);
@@ -181,9 +183,11 @@ export default function LineChart({
           text.setAttribute('text-anchor', 'middle');
           text.setAttribute('font-size', '10');
           text.setAttribute('fill', '#92400e');
-          text.textContent = d.date instanceof Date && !isNaN(d.date.getTime()) 
-            ? d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) 
-            : 'Invalid Date';
+          text.textContent = xAxisFormatter 
+            ? xAxisFormatter(d.date) 
+            : (d.date instanceof Date && !isNaN(d.date.getTime()) 
+              ? d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) 
+              : 'Invalid Date');
           g.appendChild(text);
           
           // Add tick mark
@@ -318,7 +322,7 @@ export default function LineChart({
     if (typeof window !== 'undefined') {
       renderChart();
     }
-  }, [data, width, height, title, xLabel, yLabel, tooltipFormatter]);
+  }, [data, width, height, title, xLabel, yLabel, tooltipFormatter, xAxisFormatter]); 
   
   return (
     <div className="relative">
