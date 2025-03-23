@@ -5,6 +5,24 @@ import { useGameState } from '@/lib/context/GameContext';
 import { BuildingType, EffectType } from '@/lib/types/types';
 import UpgradesPanel from './UpgradesPanel';
 
+// Type for grouped building data (can be shared across components)
+type GroupedBuilding = {
+  type: BuildingType;
+  name: string;
+  description: string;
+  count: number;
+  operationalCount: number;
+  constructionCount: number;
+  totalMaintenanceCost: number;
+  totalWorkerCapacity: number;
+  assignedWorkers: number;
+  effects: Array<{type: EffectType, value: number}>;
+  constructionProgress: number;
+  isOperational: boolean;
+  constructionCost: number;
+  maxCount?: number;
+};
+
 export default function GameControls() {
   const { state, dispatch } = useGameState();
   const [isClient, setIsClient] = useState(false);
@@ -278,110 +296,37 @@ export default function GameControls() {
     );
   };
   
-  // Update the building list rendering to handle multiple buildings and remove worker display
-  const renderBuildingList = () => {
-    // ... existing code ...
-    
-    // Render all operational buildings in a summary view
-    const operationalBuildings = state.buildings.filter(b => b.isOperational);
-    
-    return (
-      <div>
-        {availableBuildings.length > 0 && (
-          <div className="space-y-4 mb-6">
-            <h3 className="font-medium text-amber-800">Available to Build:</h3>
-            {availableBuildings.map(building => {
-              // Check if we've reached the maximum count for this building
-              const canBuildMore = !building.maxCount || 
-                (building.currentCount || 0) < building.maxCount;
-              
-              return (
-                <div key={building.id} className="border border-amber-300 p-4 rounded-md bg-amber-50/60">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-amber-900">
-                        {building.name}
-                        {building.maxCount && (
-                          <span className="text-xs text-amber-700 ml-2">
-                            ({(building.currentCount || 0)}/{building.maxCount})
-                          </span>
-                        )}
-                      </h3>
-                      <p className="text-sm text-amber-700 mt-1">{building.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-amber-900">
-                        {formatCurrency(building.constructionCost)}
-                      </p>
-                      <p className="text-xs text-amber-700">
-                        +{formatCurrency(building.maintenanceCost)}/week
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3 flex justify-between items-center">
-                    <div>
-                      {building.effects.map((effect, i) => (
-                        <div key={i} className="text-xs">
-                          <span className="text-amber-800">{effect.type}: </span>
-                          <span className={effect.value >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {effect.value > 0 ? '+' : ''}{effect.value}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => dispatch({ type: 'CONSTRUCT_BUILDING', payload: building.type })}
-                      disabled={state.treasury < building.constructionCost || !canBuildMore}
-                      className={`px-4 py-2 rounded ${
-                        !canBuildMore 
-                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                          : state.treasury < building.constructionCost 
-                            ? 'bg-amber-300 text-amber-600 cursor-not-allowed' 
-                            : 'bg-amber-600 text-white hover:bg-amber-700'
-                      }`}
-                    >
-                      {!canBuildMore ? 'Max Built' : 'Construct'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        
-        {operationalBuildings.length > 0 && (
-          <div>
-            <h3 className="font-medium text-amber-800 mb-3">Built Structures:</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {operationalBuildings.map(building => (
-                <div key={building.id} className="border border-amber-300 p-3 rounded-md bg-amber-50/60">
-                  <div className="font-medium text-amber-900">{building.name}</div>
-                  
-                  {/* Only show worker count for buildings with workers */}
-                  {building.workerCapacity > 0 ? (
-                    <div className="text-xs text-amber-700 mt-1">
-                      {building.assignedWorkers}/{building.workerCapacity} workers
-                    </div>
-                  ) : (
-                    <div className="text-xs text-amber-700 mt-1">
-                      {building.effects.find(e => e.type === EffectType.HOUSING) 
-                        ? `Capacity: ${building.effects.find(e => e.type === EffectType.HOUSING)?.value} workers` 
-                        : 'Service building'}
-                    </div>
-                  )}
-                  
-                  <div className="text-xs text-amber-600 mt-1">
-                    {formatCurrency(building.maintenanceCost)}/week
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Group buildings by type and calculate aggregated metrics
+  const groupedBuildings = state.buildings.reduce((acc, building) => {
+    if (!acc[building.type]) {
+      acc[building.type] = {
+        type: building.type,
+        name: building.name,
+        description: building.description,
+        count: 1,
+        operationalCount: building.isOperational ? 1 : 0,
+        constructionCount: !building.isOperational && building.constructionProgress > 0 ? 1 : 0,
+        totalMaintenanceCost: building.maintenanceCost,
+        totalWorkerCapacity: building.workerCapacity,
+        assignedWorkers: building.assignedWorkers,
+        effects: building.effects,
+        constructionProgress: building.constructionProgress,
+        isOperational: building.isOperational,
+        constructionCost: building.constructionCost,
+        maxCount: building.maxCount
+      };
+    } else {
+      const group = acc[building.type];
+      group.count++;
+      group.operationalCount += building.isOperational ? 1 : 0;
+      group.constructionCount += !building.isOperational && building.constructionProgress > 0 ? 1 : 0;
+      group.totalMaintenanceCost += building.maintenanceCost;
+      group.totalWorkerCapacity += building.workerCapacity;
+      group.assignedWorkers += building.assignedWorkers;
+      group.constructionProgress = Math.max(group.constructionProgress, building.constructionProgress);
+    }
+    return acc;
+  }, {} as Record<BuildingType, GroupedBuilding>);
   
   // Early return with loading state if not client-side
   if (!isClient) {
@@ -399,7 +344,79 @@ export default function GameControls() {
 
   return (
     <div className="bg-amber-100 p-6 rounded-lg shadow-md">
-      {/* Enhanced Salary Control */}
+      {/* 1. Production Info */}
+      <div className="mb-8 bg-amber-50/80 p-4 rounded-md border border-amber-200">
+        <h2 className="text-xl font-bold text-amber-900 mb-3">Today's Production</h2>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p className="text-amber-800 mb-1">Mineral Extraction</p>
+            <p className="text-xl font-semibold">{state.todayExtraction.toFixed(1)} tons</p>
+          </div>
+          
+          <div>
+            <p className="text-amber-800 mb-1">Revenue</p>
+            <p className="text-xl font-semibold text-green-600">{formatCurrency(state.todayRevenue)}</p>
+          </div>
+          
+          <div>
+            <p className="text-amber-800 mb-1">Expenses</p>
+            <p className="text-xl font-semibold text-red-600">{formatCurrency(state.todayExpenses)}</p>
+          </div>
+        </div>
+        
+        <div className="mt-3 pt-2 border-t border-amber-200">
+          <div className="flex justify-between items-center">
+            <span className="text-amber-800">Net Change</span>
+            <span className={`text-lg font-semibold ${dailyChangeColor}`}>
+              {formatCurrency(state.todayRevenue - state.todayExpenses)}
+            </span>
+          </div>
+          
+          <div className="mt-2 text-xs text-amber-600">
+            <p>Current mineral price: {formatCurrency(state.currentMineralPrice)}/ton</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Financial Summary */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold text-amber-900 mb-4">Financial Summary</h2>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <div className="mb-2">
+              <span className="text-amber-800">Weekly revenue: </span>
+              <span className="float-right font-medium text-green-600">{formatCurrency(state.weeklyRevenue)}</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Weekly expenses: </span>
+              <span className="float-right font-medium text-red-600">{formatCurrency(state.weeklyExpenses)}</span>
+            </div>
+            <div className="border-t border-amber-200 pt-1 font-medium">
+              <span className="text-amber-900">Net profit: </span>
+              <span className={`float-right ${state.weeklyRevenue - state.weeklyExpenses >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatCurrency(state.weeklyRevenue - state.weeklyExpenses)}
+              </span>
+            </div>
+          </div>
+          
+          <div className="bg-amber-50/80 p-3 rounded-md">
+            <div className="mb-2">
+              <span className="text-amber-800">Treasury: </span>
+              <span className="float-right font-medium">{formatCurrency(state.treasury)}</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Mineral price: </span>
+              <span className="float-right font-medium">{formatCurrency(state.currentMineralPrice)}/ton</span>
+            </div>
+            <div className="mb-2">
+              <span className="text-amber-800">Current day: </span>
+              <span className="float-right font-medium">Week {state.currentWeek}, Day {state.currentDay}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Salary Controls */}
       <div className="mb-8">
         <h2 className="text-xl text-amber-900 mb-4">
           Weekly Salary: <span className="font-bold">{formatCurrency(salary)}</span>
@@ -489,88 +506,127 @@ export default function GameControls() {
         </div>
       </div>
       
-      {/* Daily Economic Indicators */}
-      <div className="mb-8 bg-amber-50/80 p-4 rounded-md border border-amber-200">
-        <h2 className="text-xl font-bold text-amber-900 mb-3">Today's Production</h2>
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <div>
-            <p className="text-amber-800 mb-1">Mineral Extraction</p>
-            <p className="text-xl font-semibold">{state.todayExtraction.toFixed(1)} tons</p>
-          </div>
-          
-          <div>
-            <p className="text-amber-800 mb-1">Revenue</p>
-            <p className="text-xl font-semibold text-green-600">{formatCurrency(state.todayRevenue)}</p>
-          </div>
-          
-          <div>
-            <p className="text-amber-800 mb-1">Expenses</p>
-            <p className="text-xl font-semibold text-red-600">{formatCurrency(state.todayExpenses)}</p>
-          </div>
-        </div>
-        
-        <div className="mt-3 pt-2 border-t border-amber-200">
-          <div className="flex justify-between items-center">
-            <span className="text-amber-800">Net Change</span>
-            <span className={`text-lg font-semibold ${dailyChangeColor}`}>
-              {formatCurrency(state.todayRevenue - state.todayExpenses)}
-            </span>
-          </div>
-          
-          <div className="mt-2 text-xs text-amber-600">
-            <p>Current mineral price: {formatCurrency(state.currentMineralPrice)}/ton</p>
-          </div>
-        </div>
+      {/* 4. Worker Assignment */}
+      <div className="mb-8">
+        {renderWorkerAssignments()}
       </div>
       
-      <UpgradesPanel />
-      
-      {/* Enhanced Building Section */}
+      {/* 5. Buildings */}
       <div className="mb-8">
         <h2 className="text-xl font-bold text-amber-900 mb-4">Buildings</h2>
-        {renderBuildingList()}
+        
+        {/* Available to Build */}
+        {Object.values(groupedBuildings)
+          .filter(building => !building.isOperational && building.constructionProgress === 0)
+          .length > 0 && (
+          <div className="space-y-4 mb-6">
+            <h3 className="font-medium text-amber-800">Available to Build:</h3>
+            {Object.values(groupedBuildings)
+              .filter(building => !building.isOperational && building.constructionProgress === 0)
+              .map(building => (
+                <div key={building.type} className="border border-amber-300 p-4 rounded-md bg-amber-50/60">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-amber-900">
+                        {building.name}
+                        {building.maxCount && (
+                          <span className="text-xs text-amber-700 ml-2">
+                            ({building.count}/{building.maxCount})
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-amber-700 mt-1">{building.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-amber-900">
+                        {formatCurrency(building.constructionCost)}
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        +{formatCurrency(building.totalMaintenanceCost)}/week
+                      </p>
+                    </div>
       </div>
       
-      {/* Enhanced Worker Assignment */}
-      {renderWorkerAssignments()}
-      
-      {/* Enhanced Financial Summary */}
+                  <div className="mt-3 flex justify-between items-center">
       <div>
-        <h2 className="text-xl font-bold text-amber-900 mb-4">Financial Summary</h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="bg-amber-50/80 p-3 rounded-md">
-            <div className="mb-2">
-              <span className="text-amber-800">Weekly revenue: </span>
-              <span className="float-right font-medium text-green-600">{formatCurrency(state.weeklyRevenue)}</span>
-            </div>
-            <div className="mb-2">
-              <span className="text-amber-800">Weekly expenses: </span>
-              <span className="float-right font-medium text-red-600">{formatCurrency(state.weeklyExpenses)}</span>
-            </div>
-            <div className="border-t border-amber-200 pt-1 font-medium">
-              <span className="text-amber-900">Net profit: </span>
-              <span className={`float-right ${state.weeklyRevenue - state.weeklyExpenses >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatCurrency(state.weeklyRevenue - state.weeklyExpenses)}
+                      {building.effects.map((effect, i) => (
+                        <div key={i} className="text-xs">
+                          <span className="text-amber-800">{effect.type}: </span>
+                          <span className={effect.value >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {effect.value > 0 ? '+' : ''}{effect.value}%
               </span>
             </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => dispatch({ type: 'CONSTRUCT_BUILDING', payload: building.type })}
+                      disabled={state.treasury < building.constructionCost || 
+                        (building.maxCount && building.count >= building.maxCount)}
+                      className={`px-4 py-2 rounded ${
+                        !building.maxCount || building.count < building.maxCount
+                          ? 'bg-amber-600 text-white hover:bg-amber-700'
+                          : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      }`}
+                    >
+                      {!building.maxCount || building.count < building.maxCount ? 'Construct' : 'Max Built'}
+                    </button>
+                  </div>
+                </div>
+              ))}
           </div>
+        )}
+        
+        {/* Operational and Construction Buildings */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Operational Buildings */}
+          {Object.values(groupedBuildings)
+            .filter(building => building.operationalCount > 0)
+            .map(building => (
+              <div key={building.type} className="border border-amber-300 p-3 rounded-md bg-amber-50/60">
+                <div className="font-medium text-amber-900">
+                  {building.name}
+                  {building.operationalCount > 1 ? ` (${building.operationalCount})` : ''}
+                </div>
+                
+                {building.totalWorkerCapacity > 0 ? (
+                  <div className="text-xs text-amber-700 mt-1">
+                    {building.assignedWorkers}/{building.totalWorkerCapacity} workers
+                  </div>
+                ) : (
+                  <div className="text-xs text-amber-700 mt-1">
+                    Service building
+                  </div>
+                )}
+                
+                <div className="text-xs text-amber-600 mt-1">
+                  {formatCurrency(building.totalMaintenanceCost)}/week
+                </div>
+              </div>
+            ))}
           
-          <div className="bg-amber-50/80 p-3 rounded-md">
-            <div className="mb-2">
-              <span className="text-amber-800">Treasury: </span>
-              <span className="float-right font-medium">{formatCurrency(state.treasury)}</span>
+          {/* Construction in Progress Buildings */}
+          {Object.values(groupedBuildings)
+            .filter(building => building.constructionCount > 0)
+            .map(building => (
+              <div key={building.type} className="border border-dashed border-amber-300 p-3 rounded-md bg-amber-50/40">
+                <div className="font-medium text-amber-900">
+                  {building.name}
+                  {building.constructionCount > 1 ? ` (${building.constructionCount})` : ''}
             </div>
-            <div className="mb-2">
-              <span className="text-amber-800">Mineral price: </span>
-              <span className="float-right font-medium">{formatCurrency(state.currentMineralPrice)}/ton</span>
-            </div>
-            <div className="mb-2">
-              <span className="text-amber-800">Current day: </span>
-              <span className="float-right font-medium">Week {state.currentWeek}, Day {state.currentDay}</span>
+                <div className="text-xs text-amber-700 mt-1">Under Construction</div>
+                <div className="w-full bg-amber-200 rounded-full h-2 mt-2">
+                  <div 
+                    className="bg-amber-600 h-2 rounded-full" 
+                    style={{ width: `${building.constructionProgress}%` }}
+                  ></div>
             </div>
           </div>
+            ))}
         </div>
       </div>
+
+      {/* 6. Upgrades */}
+      <UpgradesPanel />
     </div>
   );
 }

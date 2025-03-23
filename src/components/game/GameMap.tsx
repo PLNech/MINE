@@ -4,6 +4,22 @@ import { useGameState } from '@/lib/context/GameContext';
 import { BuildingType, EffectType } from '@/lib/types/types';
 import { useState, useEffect } from 'react';
 
+// Type for grouped building data
+type GroupedBuilding = {
+  type: BuildingType;
+  name: string;
+  description: string;
+  count: number;
+  operationalCount: number;
+  constructionCount: number;
+  totalMaintenanceCost: number;
+  totalWorkerCapacity: number;
+  assignedWorkers: number;
+  effects: Array<{type: EffectType, value: number}>;
+  constructionProgress: number;
+  isOperational: boolean;
+};
+
 export default function GameMap() {
   const { state } = useGameState();
   const [isClient, setIsClient] = useState(false);
@@ -20,6 +36,36 @@ export default function GameMap() {
       maximumFractionDigits: 0,
     }).format(amount);
   };
+
+  // Group buildings by type and calculate aggregated metrics
+  const groupedBuildings = state.buildings.reduce((acc, building) => {
+    if (!acc[building.type]) {
+      acc[building.type] = {
+        type: building.type,
+        name: building.name,
+        description: building.description,
+        count: 1,
+        operationalCount: building.isOperational ? 1 : 0,
+        constructionCount: !building.isOperational && building.constructionProgress > 0 ? 1 : 0,
+        totalMaintenanceCost: building.maintenanceCost,
+        totalWorkerCapacity: building.workerCapacity,
+        assignedWorkers: building.assignedWorkers,
+        effects: building.effects,
+        constructionProgress: building.constructionProgress,
+        isOperational: building.isOperational
+      };
+    } else {
+      const group = acc[building.type];
+      group.count++;
+      group.operationalCount += building.isOperational ? 1 : 0;
+      group.constructionCount += !building.isOperational && building.constructionProgress > 0 ? 1 : 0;
+      group.totalMaintenanceCost += building.maintenanceCost;
+      group.totalWorkerCapacity += building.workerCapacity;
+      group.assignedWorkers += building.assignedWorkers;
+      group.constructionProgress = Math.max(group.constructionProgress, building.constructionProgress);
+    }
+    return acc;
+  }, {} as Record<BuildingType, GroupedBuilding>);
 
   // Helper to get building effect value
   const getBuildingEffectValue = (buildingId: string, effectType: EffectType): number => {
@@ -82,22 +128,23 @@ export default function GameMap() {
         </div>
       </div>
 
+      {/* Operational Buildings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {state.buildings
-          .filter(b => b.isOperational && b.type !== BuildingType.MINE)
+        {Object.values(groupedBuildings)
+          .filter(building => building.operationalCount > 0)
           .map(building => (
             <div 
-              key={building.id}
-              className={`border-2 border-amber-500 p-3 rounded-lg bg-amber-50 
-                ${building.type === BuildingType.BARRACKS || building.type === BuildingType.HOUSE 
-                  ? 'border-amber-600 bg-amber-100' 
-                  : ''}`}
+              key={building.type}
+              className={`border-2 border-amber-500 p-3 rounded-lg bg-amber-50`}
             >
               <h4 className="font-bold text-amber-900 flex justify-between">
-                <span>{building.name}</span>
-                {building.workerCapacity > 0 && (
+                <span>
+                  {building.name} 
+                  {building.operationalCount > 1 ? ` (${building.operationalCount})` : ''}
+                </span>
+                {building.totalWorkerCapacity > 0 && (
                   <span className="text-sm font-normal">
-                    Workers: {building.assignedWorkers} / {building.workerCapacity}
+                    Workers: {building.assignedWorkers} / {building.totalWorkerCapacity}
                   </span>
                 )}
               </h4>
@@ -113,22 +160,38 @@ export default function GameMap() {
                 ))}
                 <div className="flex justify-between">
                   <span>Maintenance:</span>
-                  <span>{formatCurrency(building.maintenanceCost)}/week</span>
+                  <span>
+                    {formatCurrency(building.totalMaintenanceCost)}/week 
+                    {building.operationalCount > 1 ? ` (${formatCurrency(building.totalMaintenanceCost / building.operationalCount)}/w × ${building.operationalCount})` : ''}
+                  </span>
                 </div>
+                {building.totalWorkerCapacity > 0 && (
+                  <div className="flex justify-between">
+                    <span>Capacity:</span>
+                    <span>
+                      {building.totalWorkerCapacity} workers 
+                      {building.operationalCount > 1 ? ` (${building.totalWorkerCapacity / building.operationalCount} × ${building.operationalCount})` : ''}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
       </div>
       
+      {/* Construction in Progress Buildings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {state.buildings
-          .filter(b => !b.isOperational && b.constructionProgress > 0)
+        {Object.values(groupedBuildings)
+          .filter(building => building.constructionCount > 0)
           .map(building => (
             <div 
-              key={building.id}
+              key={building.type}
               className="border-2 border-dashed border-amber-400 p-3 rounded-lg bg-amber-50/50"
             >
-              <h4 className="font-bold text-amber-800">{building.name}</h4>
+              <h4 className="font-bold text-amber-800">
+                {building.name} 
+                {building.constructionCount > 1 ? ` (${building.constructionCount})` : ''}
+              </h4>
               <p className="text-sm text-amber-700 my-2">Under construction</p>
               <div className="w-full bg-amber-200 rounded-full h-2.5">
                 <div 

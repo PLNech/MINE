@@ -1,5 +1,4 @@
 import { Building, BuildingType, EffectType, TownScale } from '../types/types';
-
 export const INITIAL_BUILDINGS: Building[] = [
   {
     id: 'mine-1',
@@ -169,33 +168,5 @@ export const INITIAL_BUILDINGS: Building[] = [
     unlockRequirement: {
       townScale: TownScale.SETTLEMENT
     }
-  },
-  {
-    id: 'barracks',
-    name: 'Barracks',
-    type: BuildingType.BARRACKS,
-    description: 'Provides basic housing for your workers.',
-    constructionCost: 500,
-    maintenanceCost: 100,
-    effects: [
-      {
-        type: EffectType.HOUSING,
-        value: 20
-      },
-      {
-        type: EffectType.HEALTH,
-        value: -5
-      },
-      {
-        type: EffectType.SATISFACTION,
-        value: -5
-      }
-    ],
-    workerCapacity: 0, // Barracks don't need workers
-    assignedWorkers: 0,
-    isOperational: false,
-    constructionProgress: 0,
-    maxCount: 5, // Can build up to 5 barracks
-    currentCount: 0,
-  },
+  }
 ]; 
